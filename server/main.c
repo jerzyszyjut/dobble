@@ -1,19 +1,20 @@
-#include "game.h"
+#include "server.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 int main()
 {
-  player_t *players = malloc(sizeof(player_t) * 4);
+  server_t *server = initialize_server(8080, 4);
   
-  for (int i = 0; i < 4; i++)
+  if (server == NULL)
   {
-    players[i].name = malloc(sizeof(char) * MAX_NAME_LENGTH);
-    players[i].id = i;
-    sprintf(players[i].name, "Player %d", i);
+    printf("Failed to initialize server\n");
+    return 1;
   }
-
-  game_t *game = initialize_game(players, 4);
-
-  print_game_state(game);
+  
+  start_server(server);
+  print_game_state(server->game);
+  destroy_server(server);
+  
+  return 0;
 }

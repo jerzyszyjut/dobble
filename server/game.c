@@ -103,6 +103,7 @@ game_t *initialize_game(player_t *players, size_t players_count)
   game->player_states = malloc(sizeof(player_state_t *) * players_count);
   game->players_count = players_count;
   game->top_card = get_random_card();
+  game->winner_id = -1;
 
   for (size_t i = 0; i < players_count; i++)
   {
