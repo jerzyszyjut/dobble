@@ -1,31 +1,42 @@
-#include "game.h"
+#include <netinet/in.h>
+#include <unistd.h>
+#include <asm-generic/socket.h>
+#include <pthread.h>
 
-typedef struct player_connection {
+#define MAX_PLAYER_NAME_LENGTH 32
+#define MAX_PLAYERS 4
+#define PORT 8080
+#define START_GAME_PIPE 0
+#define PLAYER_PIPES_START 1
+#define PIPE_WRITE 1
+#define PIPE_READ 0
+
+typedef struct {
   int player_id;
-  int socket;
-} player_connection_t;
+  char name[MAX_PLAYER_NAME_LENGTH];
+  int sockfd;
+} player_t;
 
-typedef struct server {
-  int socket;
-  player_connection_t *players;
-  size_t players_count;
-  game_t *game;
+typedef struct {
+  player_t* player_list;
+  int num_players;
+  int sockfd;
+  struct sockaddr_in address;
+  pthread_t* player_threads;
+  int pipe_fds[PLAYER_PIPES_START + MAX_PLAYERS][2];
 } server_t;
 
-typedef struct player_thread_args {
-  player_connection_t *player_connection;
-  server_t *server;
-  char* name;
-  int* pipefd[2];
+typedef struct {
+  server_t* server;
+  player_t* player;
 } player_thread_args_t;
 
-void* player_thread(void *arg);
+void *player_thread(void *arg);
 
-server_t *initialize_server(int port, size_t players_count);
+void init_server(server_t *server);
 
-void send_game_state(server_t *server, player_connection_t *player_connection);
+void run_server(server_t *server);
 
-void start_server(server_t *server);
+void wait_for_players(server_t *server);
 
 void destroy_server(server_t *server);
-

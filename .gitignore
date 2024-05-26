@@ -6,3 +6,4 @@ Makefile
 *.out
 .vscode/
 build/
+__pycache__/
