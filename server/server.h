@@ -15,11 +15,15 @@ typedef struct server {
 typedef struct player_thread_args {
   player_connection_t *player_connection;
   server_t *server;
+  char* name;
+  int* pipefd[2];
 } player_thread_args_t;
 
 void* player_thread(void *arg);
 
 server_t *initialize_server(int port, size_t players_count);
+
+void send_game_state(server_t *server, player_connection_t *player_connection);
 
 void start_server(server_t *server);
 
