@@ -11,25 +11,30 @@
 #define PIPE_WRITE 1
 #define PIPE_READ 0
 
-typedef struct {
+typedef struct
+{
   int player_id;
   char name[MAX_PLAYER_NAME_LENGTH];
   int sockfd;
 } player_t;
 
-typedef struct {
-  player_t* player_list;
+typedef struct
+{
+  player_t *player_list;
   int num_players;
   int sockfd;
   struct sockaddr_in address;
-  pthread_t* player_threads;
+  pthread_t *player_threads;
   int pipe_fds[PLAYER_PIPES_START + MAX_PLAYERS][2];
 } server_t;
 
-typedef struct {
-  server_t* server;
-  player_t* player;
+typedef struct
+{
+  server_t *server;
+  player_t *player;
 } player_thread_args_t;
+
+void init_server_player(player_thread_args_t *arg);
 
 void *player_thread(void *arg);
 

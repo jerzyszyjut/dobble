@@ -7,6 +7,6 @@ project(
 
 set(CMAKE_C_FLAGS "-Wall -Wextra -Werror -std=c99")
 
-add_executable(dobble main.c server.c server.h)
+add_executable(dobble main.c server.c server.h game.c game.h)
 
 target_link_libraries(dobble)
