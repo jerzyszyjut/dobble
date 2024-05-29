@@ -5,13 +5,15 @@ from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
     QGridLayout,
+    QLabel,
+    QVBoxLayout
 )
 import sys
 import os
 import random
-from PyQt5.QtCore import Qt, QRectF, QPointF, QRect
+from PyQt5.QtCore import Qt, QRectF, QPointF, QRect, pyqtSignal
 from PyQt5.QtGui import QPainter, QBrush, QPen, QPixmap, QFont
-from math import sin, cos
+from math import sin, cos, pi
 
 
 ADDRESS = "127.0.0.1"
@@ -21,93 +23,117 @@ SYMBOLS_PER_CARD = 8
 INT_SIZE = 4
 BYTE_ORDER = "little"
 
+class SymbolLabel(QLabel):
+    clicked = pyqtSignal(str)
+
+    def __init__(self, image_path, symbol_name, size=50, is_clickable=False, parent=None):
+        super().__init__(parent)
+        self.image_path = image_path
+        self.symbol_name = symbol_name
+        self.is_clickable = is_clickable
+        self.setPixmap(QPixmap(image_path).scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.setAlignment(Qt.AlignCenter)
+        self.setFixedSize(size, size)
+        self.setStyleSheet("border: 2px solid transparent;")
+
+    def enterEvent(self, event):
+        if self.is_clickable:
+            self.setStyleSheet("border: 2px solid red;")
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if self.is_clickable:
+            self.setStyleSheet("border: 2px solid transparent;")
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event):
+        if self.is_clickable and event.button() == Qt.LeftButton:
+            self.clicked.emit(str(self.symbol_name))
+        super().mousePressEvent(event)
+        
+    def rescale(self, size):
+        self.setPixmap(QPixmap(self.image_path).scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.setFixedSize(size, size)
 
 class DobbleCardWidget(QWidget):
-    def __init__(self, card_name):
+    def __init__(self, card_name, is_clickable=False):
         super().__init__()
         self.image_dir = "symbols"
+        self.is_clickable = is_clickable
         self.card_name = card_name
         self.images = self.load_images()
-        self.image_coords = []
-        self.hovered_symbol = None  # To track the symbol under the cursor
-        self.setGeometry(100, 100, 200, 200)
-        self.show()
+        self.symbol_labels = []
+        self.initUI()
 
     def load_images(self):
-        image_files = [f for f in os.listdir(self.image_dir) if f.endswith('.png')]
+        image_files = [(os.path.join(self.image_dir, f), int(f.split(".")[0])) for f in os.listdir(self.image_dir) if f.endswith('.png')]
         random.shuffle(image_files)
-        image_files = image_files[:8]
-        images = [(QPixmap(os.path.join(self.image_dir, img)), img) for img in image_files]
-        return images
+        return image_files[:8]
+
+    def initUI(self):
+        self.setGeometry(100, 100, 200, 250)  # Increase height to accommodate title
+
+        self.layout = QVBoxLayout(self)
+        self.title_label = QLabel(self.card_name)
+        self.title_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.layout.addWidget(self.title_label)
+        
+        self.card_widget = QWidget(self)
+        self.card_layout = QVBoxLayout(self.card_widget)
+        self.layout.addWidget(self.card_widget)
+
+        self.create_symbols()
+        self.show()
+
+    def create_symbols(self):
+        for image_path, name in self.images:
+            symbol_label = SymbolLabel(image_path, str(name), is_clickable=self.is_clickable, parent=self)
+            symbol_label.clicked.connect(self.symbol_clicked)
+            self.symbol_labels.append(symbol_label)
+        self.update_symbol_positions()
+
+    def update_symbol_positions(self):
+        y_offset = 20
+
+        center = QPointF(self.width() / 2, self.height() / 2 + y_offset)
+        radius = min(self.width(), self.height() - y_offset) / 2 - 10
+
+        ratio = min(self.width(), self.height() - y_offset) / 300
+        new_image_size = int(50 * ratio)
+
+        angle_step = 360 / (len(self.symbol_labels) - 1)
+        image_radius = new_image_size / 2
+
+        for i, symbol_label in enumerate(self.symbol_labels):
+            if i != len(self.symbol_labels) - 1:
+                angle = angle_step * i
+                radians = angle * (pi / 180)
+                x = center.x() + (radius - image_radius - new_image_size / 4) * cos(radians) - image_radius
+                y = center.y() + (radius - image_radius - new_image_size / 4) * sin(radians) - image_radius
+            else:
+                x = center.x() - image_radius
+                y = center.y() - image_radius
+                
+            x, y = int(x), int(y)
+
+            symbol_label.move(x, y)
+            symbol_label.rescale(new_image_size)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        painter.setFont(QFont('Arial', 12))
-        text_rect = painter.boundingRect(self.rect(), Qt.AlignCenter, self.card_name)
-        text_rect.moveTop(0)
-        painter.drawText(text_rect, Qt.AlignCenter, self.card_name)
+        y_offset = 20
 
-        y_offset = 12
-
-        image_coords = []
         center = QPointF(self.width() / 2, self.height() / 2 + y_offset)
-        radius = min(self.width(), self.height()) / 2 - 10
+        radius = min(self.width(), self.height() - y_offset) / 2 - 10
         painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
         painter.setPen(QPen(Qt.black, 2))
         painter.drawEllipse(center, radius, radius)
 
-        ratio = min(self.width(), self.height()) / 300
-        new_images_size = (int(50 * ratio), int(50 * ratio))
-
-        angle_step = 360 / (len(self.images) - 1)
-        image_radius = new_images_size[0] / 2
-
-        for i, (pixmap, name) in enumerate(self.images):
-            if i != len(self.images) - 1:
-                angle = angle_step * i
-                radians = angle * (3.14159265 / 180)
-                x = center.x() + (radius - image_radius - new_images_size[0] / 4) * cos(radians) - image_radius
-                y = center.y() + (radius - image_radius - new_images_size[0] / 4) * sin(radians) - image_radius
-            else:
-                x = center.x() - image_radius
-                y = center.y() - image_radius
-
-            pixmap = pixmap.scaled(new_images_size[0], new_images_size[1])
-            x, y = int(x), int(y)
-
-            # Draw the border if the symbol is hovered
-            if self.hovered_symbol == name:
-                painter.setPen(QPen(Qt.red, 3))
-                painter.drawRect(x, y, new_images_size[0], new_images_size[1])
-                painter.setPen(QPen(Qt.black, 2))
-
-            painter.drawPixmap(x, y, pixmap)
-            image_coords.append((int(name.split(".")[0]), QRect(x, y, new_images_size[0], new_images_size[1])))
-        
-        self.image_coords = image_coords
-
-    def mouseMoveEvent(self, event):
-        pos = event.pos()
-        hovered_symbol = None
-        for name, rect in self.image_coords:
-            if rect.contains(pos):
-                hovered_symbol = name
-                break
-        
-        if hovered_symbol != self.hovered_symbol:
-            self.hovered_symbol = hovered_symbol
-            self.update()
-
-        print(hovered_symbol)
-
-    def mousePressEvent(self, event):
-        pos = event.pos()
-        for name, rect in self.image_coords:
-            if rect.contains(pos):
-                self.symbol_clicked(name)
-                break
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_symbol_positions()
 
     def symbol_clicked(self, symbol_name):
         print(f"Symbol clicked: {symbol_name}")       
@@ -127,7 +153,7 @@ class DobbleMainWindow(QWidget):
         top_card = DobbleCardWidget("Top card")
         layout.addWidget(top_card, 0, 0, 2, 2)
         
-        my_card = DobbleCardWidget("Your card")
+        my_card = DobbleCardWidget("Your card", True)
         layout.addWidget(my_card, 2, 0, 2, 2)
 
         for i in range(2):
