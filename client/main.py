@@ -9,8 +9,8 @@ from PyQt5.QtWidgets import (
 import sys
 import os
 import random
-from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtGui import QPainter, QBrush, QPen, QPixmap, QTransform
+from PyQt5.QtCore import Qt, QRectF, QPointF, QRect
+from PyQt5.QtGui import QPainter, QBrush, QPen, QPixmap, QFont
 from math import sin, cos
 
 
@@ -23,10 +23,13 @@ BYTE_ORDER = "little"
 
 
 class DobbleCardWidget(QWidget):
-    def __init__(self):
+    def __init__(self, card_name):
         super().__init__()
         self.image_dir = "symbols"
+        self.card_name = card_name
         self.images = self.load_images()
+        self.image_coords = []
+        self.hovered_symbol = None  # To track the symbol under the cursor
         self.setGeometry(100, 100, 200, 200)
         self.show()
 
@@ -41,9 +44,15 @@ class DobbleCardWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
+        painter.setFont(QFont('Arial', 12))
+        text_rect = painter.boundingRect(self.rect(), Qt.AlignCenter, self.card_name)
+        text_rect.moveTop(0)
+        painter.drawText(text_rect, Qt.AlignCenter, self.card_name)
+
+        y_offset = 12
+
         image_coords = []
-        # Draw white circle in the center
-        center = QPointF(self.width() / 2, self.height() / 2)
+        center = QPointF(self.width() / 2, self.height() / 2 + y_offset)
         radius = min(self.width(), self.height()) / 2 - 10
         painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
         painter.setPen(QPen(Qt.black, 2))
@@ -55,27 +64,55 @@ class DobbleCardWidget(QWidget):
         angle_step = 360 / (len(self.images) - 1)
         image_radius = new_images_size[0] / 2
 
-        for i, pixmap in enumerate(self.images):
-            pixmap, name = pixmap
+        for i, (pixmap, name) in enumerate(self.images):
             if i != len(self.images) - 1:
                 angle = angle_step * i
                 radians = angle * (3.14159265 / 180)
                 x = center.x() + (radius - image_radius - new_images_size[0] / 4) * cos(radians) - image_radius
                 y = center.y() + (radius - image_radius - new_images_size[0] / 4) * sin(radians) - image_radius
-                pixmap = pixmap.scaled(new_images_size[0], new_images_size[1])
-                x, y = int(x), int(y)
-                image_coords.append((x, y))
-                painter.drawPixmap(x, y, pixmap)
             else:
-                pixmap = pixmap.scaled(new_images_size[0], new_images_size[1])
                 x = center.x() - image_radius
                 y = center.y() - image_radius
-                x, y = int(x), int(y)
-                painter.drawPixmap(x, y, pixmap)
-            image_coords.append((name, (x, y)))
-        
-        print(image_coords)
 
+            pixmap = pixmap.scaled(new_images_size[0], new_images_size[1])
+            x, y = int(x), int(y)
+
+            # Draw the border if the symbol is hovered
+            if self.hovered_symbol == name:
+                painter.setPen(QPen(Qt.red, 3))
+                painter.drawRect(x, y, new_images_size[0], new_images_size[1])
+                painter.setPen(QPen(Qt.black, 2))
+
+            painter.drawPixmap(x, y, pixmap)
+            image_coords.append((int(name.split(".")[0]), QRect(x, y, new_images_size[0], new_images_size[1])))
+        
+        self.image_coords = image_coords
+
+    def mouseMoveEvent(self, event):
+        pos = event.pos()
+        hovered_symbol = None
+        for name, rect in self.image_coords:
+            if rect.contains(pos):
+                hovered_symbol = name
+                break
+        
+        if hovered_symbol != self.hovered_symbol:
+            self.hovered_symbol = hovered_symbol
+            self.update()
+
+        print(hovered_symbol)
+
+    def mousePressEvent(self, event):
+        pos = event.pos()
+        for name, rect in self.image_coords:
+            if rect.contains(pos):
+                self.symbol_clicked(name)
+                break
+
+    def symbol_clicked(self, symbol_name):
+        print(f"Symbol clicked: {symbol_name}")       
+        
+        
 class DobbleMainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -87,22 +124,19 @@ class DobbleMainWindow(QWidget):
 
         layout = QGridLayout()
         
-        top_card = DobbleCardWidget()
+        top_card = DobbleCardWidget("Top card")
         layout.addWidget(top_card, 0, 0, 2, 2)
         
-        my_card = DobbleCardWidget()
+        my_card = DobbleCardWidget("Your card")
         layout.addWidget(my_card, 2, 0, 2, 2)
 
         for i in range(2):
             for j in range(2):
-                card = DobbleCardWidget()
+                card = DobbleCardWidget("Player card")
                 layout.addWidget(card, i, j + 2)
 
         self.setLayout(layout)
         self.show()
-
-    def on_click(self):
-        print("Button clicked")
 
 class RequestType(Enum):
     SEND_GAME_STATE = 0
