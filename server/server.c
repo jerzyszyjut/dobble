@@ -34,14 +34,12 @@ void *player_thread(void *arg)
 {
   player_thread_args_t *args = (player_thread_args_t *)arg;
   player_t *player = args->player;
-  char buffer[128] = {0};
 
   init_server_player(args);
 
-  sprintf(buffer, "Welcome to the game, %s!", player->name);
-  send(player->sockfd, buffer, strlen(buffer), 0);
-
   printf("Received game start signal for player %d\n", player->player_id);
+
+  send_game_state(args->server, args->game, player->player_id);
 
   close(player->sockfd);
 
@@ -117,6 +115,8 @@ void run_server(server_t *server)
 
 void wait_for_players(server_t *server)
 {
+  game_t game;
+
   while (server->num_players < MAX_PLAYERS)
   {
     int new_socket;
@@ -141,6 +141,7 @@ void wait_for_players(server_t *server)
 
     args->server = server;
     args->player = &server->player_list[server->num_players];
+    args->game = &game;
 
     if (pthread_create(&server->player_threads[server->num_players], NULL, player_thread, (void *)args) != 0)
     {
@@ -163,6 +164,13 @@ void wait_for_players(server_t *server)
     }
   }
 
+  int player_ids[MAX_PLAYERS];
+  for (int i = 0; i < MAX_PLAYERS; i++)
+  {
+    player_ids[i] = i;
+  }
+  init_game(&game, player_ids, MAX_PLAYERS);
+
   int opt = 1;
   for (int i = 0; i < MAX_PLAYERS; i++)
   {
@@ -178,6 +186,39 @@ void wait_for_players(server_t *server)
   {
     pthread_join(server->player_threads[i], NULL);
   }
+}
+
+void send_game_state(server_t *server, game_t* game, int player_id) 
+{
+  int player_sockfd = server->player_list[player_id].sockfd, temp;
+  
+  request_type_t request = SEND_GAME_STATE;
+  send(player_sockfd, &request, sizeof(request), 0);
+  
+  temp = SYMBOLS_PER_CARD;
+  send(player_sockfd, &temp, sizeof(temp), 0);
+  for (int i = 0; i < SYMBOLS_PER_CARD; i++) {
+    temp = game->current_top_card[i];
+    send(player_sockfd, &temp, sizeof(temp), 0);
+  }
+  
+  send(player_sockfd, &game->players_count, sizeof(game->players_count), 0);
+  for(int i = 0; i < game->players_count; i++) {
+    player_state_t player = game->player_states[i];
+    send(player_sockfd, &player.player_id, sizeof(player.player_id), 0);
+    send(player_sockfd, &player.current_card, SYMBOLS_PER_CARD * sizeof(int), 0);
+    send(player_sockfd, &player.cards_in_hand_count, sizeof(player.cards_in_hand_count), 0);
+    send(player_sockfd, &player.swaps_left, sizeof(player.swaps_left), 0);
+    send(player_sockfd, &player.swaps_cooldown, sizeof(player.swaps_cooldown), 0);
+    send(player_sockfd, &player.freezes_left, sizeof(player.freezes_left), 0);
+    send(player_sockfd, &player.freezes_cooldown, sizeof(player.freezes_cooldown), 0);
+    send(player_sockfd, &player.rerolls_left, sizeof(player.rerolls_left), 0);
+    send(player_sockfd, &player.rerolls_cooldown, sizeof(player.rerolls_cooldown), 0);
+    send(player_sockfd, &player.is_frozen, sizeof(player.is_frozen), 0);
+  }
+
+  request = END_REQUEST;
+  send(player_sockfd, &request, sizeof(request), 0);
 }
 
 void destroy_server(server_t *server)

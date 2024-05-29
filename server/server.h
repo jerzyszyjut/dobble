@@ -2,9 +2,10 @@
 #include <unistd.h>
 #include <asm-generic/socket.h>
 #include <pthread.h>
+#include "game.h"
 
 #define MAX_PLAYER_NAME_LENGTH 32
-#define MAX_PLAYERS 4
+#define MAX_PLAYERS 1
 #define PORT 8080
 #define START_GAME_PIPE 0
 #define PLAYER_PIPES_START 1
@@ -32,7 +33,14 @@ typedef struct
 {
   server_t *server;
   player_t *player;
+  game_t *game;
 } player_thread_args_t;
+
+typedef enum request_type
+{
+  SEND_GAME_STATE,
+  END_REQUEST
+} request_type_t;
 
 void init_server_player(player_thread_args_t *arg);
 
@@ -43,5 +51,7 @@ void init_server(server_t *server);
 void run_server(server_t *server);
 
 void wait_for_players(server_t *server);
+
+void send_game_state(server_t *server, game_t* game, int player_id);
 
 void destroy_server(server_t *server);
