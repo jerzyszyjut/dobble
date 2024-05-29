@@ -39,7 +39,8 @@ typedef struct
 typedef enum request_type
 {
   SEND_GAME_STATE,
-  END_REQUEST
+  END_REQUEST,
+  SEND_GAME_METADATA
 } request_type_t;
 
 void init_server_player(player_thread_args_t *arg);
@@ -51,6 +52,10 @@ void init_server(server_t *server);
 void run_server(server_t *server);
 
 void wait_for_players(server_t *server);
+
+void send_communication_metadata(server_t *server, int player_id);
+
+void send_game_metadata(server_t *server, int player_id); 
 
 void send_game_state(server_t *server, game_t* game, int player_id);
 

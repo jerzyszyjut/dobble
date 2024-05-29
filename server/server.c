@@ -12,9 +12,13 @@ void init_server_player(player_thread_args_t *arg)
   player_t *player = arg->player;
   server_t *server = arg->server;
 
+  send_communication_metadata(server, player->player_id);
+
   char buffer[128] = {0};
   recv(player->sockfd, buffer, MAX_PLAYER_NAME_LENGTH, 0);
   strcpy(player->name, buffer);
+
+  send_game_metadata(server, player->player_id);
 
   if (write(server->pipe_fds[PLAYER_PIPES_START + player->player_id][PIPE_WRITE], player->name, MAX_PLAYER_NAME_LENGTH) < 0)
   {
@@ -186,6 +190,26 @@ void wait_for_players(server_t *server)
   {
     pthread_join(server->player_threads[i], NULL);
   }
+}
+
+void send_communication_metadata(server_t *server, int player_id)
+{
+  int player_sockfd = server->player_list[player_id].sockfd;
+  int int_size = sizeof(int);
+  send(player_sockfd, &int_size, 1, 0);
+
+  int big_endian = 1;
+  int is_little_endian = *(char *)&big_endian == 1;
+  send(player_sockfd, &is_little_endian, 1, 0);
+}
+
+void send_game_metadata(server_t *server, int player_id)
+{
+  int player_sockfd = server->player_list[player_id].sockfd;
+  request_type_t request = SEND_GAME_METADATA;
+  send(player_sockfd, &request, sizeof(request), 0);
+  int symbols_per_card = SYMBOLS_PER_CARD;
+  send(player_sockfd, &symbols_per_card, sizeof(symbols_per_card), 0);
 }
 
 void send_game_state(server_t *server, game_t* game, int player_id) 
