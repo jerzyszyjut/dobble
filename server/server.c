@@ -210,6 +210,7 @@ void send_game_metadata(server_t *server, int player_id)
   send(player_sockfd, &request, sizeof(request), 0);
   int symbols_per_card = SYMBOLS_PER_CARD;
   send(player_sockfd, &symbols_per_card, sizeof(symbols_per_card), 0);
+  send(player_sockfd, &player_id, sizeof(player_id), 0);
 }
 
 void send_game_state(server_t *server, game_t* game, int player_id) 

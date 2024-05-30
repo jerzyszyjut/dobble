@@ -56,22 +56,27 @@ class SymbolLabel(QLabel):
         self.setFixedSize(size, size)
 
 class DobbleCardWidget(QWidget):
-    def __init__(self, card_name, is_clickable=False):
+    def __init__(self, card_name, cards=None, game_client=None, is_clickable=False):
         super().__init__()
         self.image_dir = "symbols"
         self.is_clickable = is_clickable
         self.card_name = card_name
+        self.cards = cards
+        self.game_client = game_client
         self.images = self.load_images()
         self.symbol_labels = []
         self.initUI()
 
     def load_images(self):
         image_files = [(os.path.join(self.image_dir, f), int(f.split(".")[0])) for f in os.listdir(self.image_dir) if f.endswith('.png')]
-        random.shuffle(image_files)
-        return image_files[:8]
+        image_files = sorted(image_files, key=lambda x: x[1])
+        images = []
+        for image_id in self.cards:
+            images.append(image_files[image_id - 1])
+        return images
 
     def initUI(self):
-        self.setGeometry(100, 100, 200, 250)  # Increase height to accommodate title
+        self.setGeometry(100, 100, 200, 200)
 
         self.layout = QVBoxLayout(self)
         self.title_label = QLabel(self.card_name)
@@ -140,8 +145,9 @@ class DobbleCardWidget(QWidget):
         
         
 class DobbleMainWindow(QWidget):
-    def __init__(self):
+    def __init__(self, game_client):
         super().__init__()
+        self.game_client = game_client
         self.init_ui()
 
     def init_ui(self):
@@ -150,16 +156,19 @@ class DobbleMainWindow(QWidget):
 
         layout = QGridLayout()
         
-        top_card = DobbleCardWidget("Top card")
+        top_card = DobbleCardWidget("Top card", cards=self.game_client.game.current_top_card)
         layout.addWidget(top_card, 0, 0, 2, 2)
         
-        my_card = DobbleCardWidget("Your card", True)
+        my_card = DobbleCardWidget("Your card", game_client=self.game_client, cards=self.game_client.game.player_states[self.game_client.my_id].current_card, is_clickable=True)    
         layout.addWidget(my_card, 2, 0, 2, 2)
 
-        for i in range(2):
-            for j in range(2):
-                card = DobbleCardWidget("Player card")
-                layout.addWidget(card, i, j + 2)
+        other_players = self.game_client.game.player_states.copy()
+        other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
+        
+        for i, player in enumerate(other_players):
+            player_card = DobbleCardWidget(f"Player {player.player_id}", cards=player.current_card)
+            layout.addWidget(player_card, i // 2, i % 2 + 2)
+            
 
         self.setLayout(layout)
         self.show()
@@ -248,6 +257,7 @@ class Client:
     game: Game
     started: bool
     finished: bool
+    my_id: int
 
     def __init__(self):
         self.socket_client = None
@@ -285,7 +295,7 @@ class Client:
     def _receive_game_metadata(self):
         global SYMBOLS_PER_CARD
         SYMBOLS_PER_CARD = self._receive_message(int)
-        
+        self.my_id = self._receive_message(int)
 
     def _receive_game_state(self):
         SYMBOLS_PER_CARD = self._receive_message(int)
@@ -346,8 +356,11 @@ class Client:
 
 def main():
     app = QApplication(sys.argv)
-    window = DobbleMainWindow()
+    client = Client()
+    client.run()
+    window = DobbleMainWindow(client)
     sys.exit(app.exec_())
+    
 
 if __name__ == "__main__":
     main()
