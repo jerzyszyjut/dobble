@@ -59,6 +59,65 @@ void set_player_card(game_t *game, player_state_t *player_state)
   }
 }
 
+void act_player(game_t *game, action_t *action, int current_player_id)
+{
+  player_state_t *player_state = get_player_state_by_id(game, action->id);
+
+  switch (action->action_type)
+  {
+  case CARD:
+    checking_guess(game, action, current_player_id);
+    break;
+  case SWAP:
+    if (player_state->swaps_left > 0)
+    {
+      swap_cards(player_state, get_player_state_by_id(game, current_player_id));
+      player_state->swaps_left--;
+    }
+    break;
+  case FREEZE:
+    if (player_state->freezes_left > 0)
+    {
+      player_state->is_frozen_count++;
+      player_state->freezes_left--;
+    }
+    break;
+  case REROLL:
+    if (player_state->rerolls_left > 0)
+    {
+      set_player_card(game, player_state);
+      player_state->rerolls_left--;
+    }
+    break;
+  }
+}
+
+
+void swap_cards(player_state_t *acting_player_state, player_state_t *target_player_state)
+{
+  int temp_card[SYMBOLS_PER_CARD];
+
+  for (int i = 0; i < SYMBOLS_PER_CARD; i++)
+  {
+    temp_card[i] = acting_player_state->current_card[i];
+    acting_player_state->current_card[i] = target_player_state->current_card[i];
+    target_player_state->current_card[i] = temp_card[i];
+  }
+}
+
+void checking_guess(game_t *game, action_t *action, int current_player_id)
+{
+  player_state_t *player_state = get_player_state_by_id(game, current_player_id);
+  for(int i = 0; i < SYMBOLS_PER_CARD; i++)
+  {
+    if(action->id == game->current_top_card[i])
+    {
+      player_state->cards_in_hand_count--;
+      set_player_card(game, player_state);
+    }
+  }
+}
+
 player_state_t *get_player_state_by_id(game_t *game, int id)
 {
   for (int i = 0; i < game->players_count; i++)
@@ -86,7 +145,7 @@ void init_game_player(game_t *game, int index, int id)
   player_state->freezes_cooldown = FREEZES_COOLDOWN;
   player_state->rerolls_left = DEFAULT_REROLLS_COUNT;
   player_state->rerolls_cooldown = REROLLS_COOLDOWN;
-  player_state->is_frozen = 0;
+  player_state->is_frozen_count = 0;
 }
 
 void init_game(game_t *game, int *player_ids, int players_count)

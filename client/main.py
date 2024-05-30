@@ -177,6 +177,14 @@ class RequestType(Enum):
     SEND_GAME_STATE = 0
     END_REQUEST = 1
     SEND_GAME_METADATA = 2
+    MAKE_ACTION = 3
+
+class GameAction(Enum):
+    PLAY = 0
+    SWAP = 1
+    FREEZE = 2
+    REROLL = 3
+
 
 
 class PlayerState:
@@ -269,18 +277,31 @@ class Client:
         self.socket_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_client.connect((ADDRESS, PORT))
 
+        # self._receive_communication_metadata()
+        
+        # self._get_and_send_username()
+
+        # while not self.finished:
+        #     request_type = self._receive_message(int)
+
+        #     if RequestType(request_type) == RequestType.SEND_GAME_STATE:
+        #         self._receive_game_state()
+        #     elif RequestType(request_type) == RequestType.SEND_GAME_METADATA:
+        #         self._receive_game_metadata()
+
         self._receive_communication_metadata()
         
         self._get_and_send_username()
 
-        while not self.finished:
-            request_type = self._receive_message(int)
+        request_type = self._receive_message(int)
+        self._receive_game_metadata()
 
-            if RequestType(request_type) == RequestType.SEND_GAME_STATE:
-                self._receive_game_state()
-            elif RequestType(request_type) == RequestType.SEND_GAME_METADATA:
-                self._receive_game_metadata()
-                
+        request_type = self._receive_message(int)
+        self._receive_game_state()
+
+        request_type = self._receive_message(int)
+        self._sent_game_action(MAKE_ACTION, PLAY, 0, 0)
+                        
 
         self.socket_client.close()
 
@@ -352,14 +373,21 @@ class Client:
             username = input("Enter your username: ")
 
         self.socket_client.send(username.encode())
+
+    def _sent_game_action(self, request_type: RequestType, action: GameAction, id, hash):
+        self.socket_client.send(request_type.value.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
+        self.socket_client.send(action.value.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
+        self.socket_client.send(id.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
+        self.socket_client.send(hash.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
+
  
 
 def main():
     app = QApplication(sys.argv)
     client = Client()
     client.run()
-    window = DobbleMainWindow(client)
-    sys.exit(app.exec_())
+    #window = DobbleMainWindow(client)
+    #sys.exit(app.exec_())
     
 
 if __name__ == "__main__":

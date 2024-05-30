@@ -5,7 +5,7 @@
 #include "game.h"
 
 #define MAX_PLAYER_NAME_LENGTH 32
-#define MAX_PLAYERS 4
+#define MAX_PLAYERS 2
 #define PORT 8080
 #define START_GAME_PIPE 0
 #define PLAYER_PIPES_START 1
@@ -40,7 +40,8 @@ typedef enum request_type
 {
   SEND_GAME_STATE,
   END_REQUEST,
-  SEND_GAME_METADATA
+  SEND_GAME_METADATA,
+  MAKE_ACTION
 } request_type_t;
 
 void init_server_player(player_thread_args_t *arg);
@@ -58,5 +59,7 @@ void send_communication_metadata(server_t *server, int player_id);
 void send_game_metadata(server_t *server, int player_id); 
 
 void send_game_state(server_t *server, game_t* game, int player_id);
+
+void receive_game_action(server_t *server, game_t *game, int player_id);
 
 void destroy_server(server_t *server);

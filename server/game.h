@@ -23,7 +23,7 @@ typedef struct player_state
   int freezes_cooldown;
   int rerolls_left;
   int rerolls_cooldown;
-  int is_frozen;
+  int is_frozen_count;
 } player_state_t;
 
 typedef struct game
@@ -49,6 +49,12 @@ typedef struct action {
 void set_starting_card(game_t *game);
 
 void set_player_card(game_t *game, player_state_t *player_state);
+
+void act_player(game_t *game, action_t *action, int current_player_id);
+
+void swap_cards(player_state_t *acting_player_state, player_state_t *target_player_state);
+
+void checking_guess(game_t *game, action_t *action, int current_player_id);
 
 player_state_t *get_player_state_by_id(game_t *game, int id);
 

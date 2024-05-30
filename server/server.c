@@ -45,6 +45,10 @@ void *player_thread(void *arg)
 
   send_game_state(args->server, args->game, player->player_id);
 
+  request_type_t request_type = recv(player->sockfd, &request_type, sizeof(request_type), 0);
+  if(request_type == MAKE_ACTION)
+    receive_game_action(args->server, args->game, player->player_id);
+
   close(player->sockfd);
 
   return NULL;
@@ -184,7 +188,7 @@ void wait_for_players(server_t *server)
       exit(1);
     }
   }
-  printf("Sent start signal to player threads");
+  printf("Sent start signal to player threads\n");
 
   for (int i = 0; i < MAX_PLAYERS; i++)
   {
@@ -239,12 +243,24 @@ void send_game_state(server_t *server, game_t* game, int player_id)
     send(player_sockfd, &player.freezes_cooldown, sizeof(player.freezes_cooldown), 0);
     send(player_sockfd, &player.rerolls_left, sizeof(player.rerolls_left), 0);
     send(player_sockfd, &player.rerolls_cooldown, sizeof(player.rerolls_cooldown), 0);
-    send(player_sockfd, &player.is_frozen, sizeof(player.is_frozen), 0);
+    send(player_sockfd, &player.is_frozen_count, sizeof(player.is_frozen_count), 0);
   }
 
   request = END_REQUEST;
   send(player_sockfd, &request, sizeof(request), 0);
 }
+
+void receive_game_action(server_t *server, game_t *game, int player_id)
+{
+  int player_sockfd = server->player_list[player_id].sockfd;
+  action_t action;
+  recv(player_sockfd, &action.action_type, sizeof(action.action_type), 0);
+  recv(player_sockfd, &action.id, sizeof(action.id), 0);
+  recv(player_sockfd, &action.board_hash, sizeof(action.board_hash), 0);
+  act_player(game, &action, player_id);
+  send_game_state(server, game, player_id);
+}
+
 
 void destroy_server(server_t *server)
 {
