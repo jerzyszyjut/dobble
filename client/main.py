@@ -180,7 +180,7 @@ class RequestType(Enum):
     MAKE_ACTION = 3
 
 class GameAction(Enum):
-    PLAY = 0
+    CARD = 0
     SWAP = 1
     FREEZE = 2
     REROLL = 3
@@ -299,8 +299,9 @@ class Client:
         request_type = self._receive_message(int)
         self._receive_game_state()
 
-        request_type = self._receive_message(int)
-        self._sent_game_action(MAKE_ACTION, PLAY, 0, 0)
+        #request_type = self._receive_message(int)
+        self._sent_game_action(RequestType.MAKE_ACTION, GameAction.CARD, 1, 0)
+        self._receive_game_state()
                         
 
         self.socket_client.close()

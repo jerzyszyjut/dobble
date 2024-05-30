@@ -46,7 +46,7 @@ void *player_thread(void *arg)
   send_game_state(args->server, args->game, player->player_id);
 
   request_type_t request_type = recv(player->sockfd, &request_type, sizeof(request_type), 0);
-  if(request_type == MAKE_ACTION)
+  if(request_type - 1 == MAKE_ACTION)
     receive_game_action(args->server, args->game, player->player_id);
 
   close(player->sockfd);
