@@ -46,8 +46,7 @@ void *player_thread(void *arg)
   send_game_state(args->server, args->game, player->player_id);
 
   request_type_t request_type = recv(player->sockfd, &request_type, sizeof(request_type), 0);
-  if(request_type - 1 == MAKE_ACTION)
-    receive_game_action(args->server, args->game, player->player_id);
+  receive_game_action(args->server, args->game, player->player_id);
 
   close(player->sockfd);
 
@@ -215,6 +214,8 @@ void send_game_metadata(server_t *server, int player_id)
   int symbols_per_card = SYMBOLS_PER_CARD;
   send(player_sockfd, &symbols_per_card, sizeof(symbols_per_card), 0);
   send(player_sockfd, &player_id, sizeof(player_id), 0);
+  request = END_REQUEST;
+  send(player_sockfd, &request, sizeof(request), 0);
 }
 
 void send_game_state(server_t *server, game_t* game, int player_id) 
@@ -258,6 +259,13 @@ void receive_game_action(server_t *server, game_t *game, int player_id)
   recv(player_sockfd, &action.id, sizeof(action.id), 0);
   recv(player_sockfd, &action.board_hash, sizeof(action.board_hash), 0);
   act_player(game, &action, player_id);
+  request_type_t end_request;
+  recv(player_sockfd, &end_request, sizeof(end_request), 0);
+  if (end_request != END_REQUEST)
+  {
+    perror("Invalid end request");
+    exit(1);
+  }
   send_game_state(server, game, player_id);
 }
 

@@ -277,18 +277,6 @@ class Client:
         self.socket_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_client.connect((ADDRESS, PORT))
 
-        # self._receive_communication_metadata()
-        
-        # self._get_and_send_username()
-
-        # while not self.finished:
-        #     request_type = self._receive_message(int)
-
-        #     if RequestType(request_type) == RequestType.SEND_GAME_STATE:
-        #         self._receive_game_state()
-        #     elif RequestType(request_type) == RequestType.SEND_GAME_METADATA:
-        #         self._receive_game_metadata()
-
         self._receive_communication_metadata()
         
         self._get_and_send_username()
@@ -299,11 +287,8 @@ class Client:
         request_type = self._receive_message(int)
         self._receive_game_state()
 
-        #request_type = self._receive_message(int)
         self._sent_game_action(RequestType.MAKE_ACTION, GameAction.CARD, 1, 0)
-        self._receive_game_state()
                         
-
         self.socket_client.close()
 
     def _receive_communication_metadata(self):
@@ -318,6 +303,9 @@ class Client:
         global SYMBOLS_PER_CARD
         SYMBOLS_PER_CARD = self._receive_message(int)
         self.my_id = self._receive_message(int)
+        end_request_message = self._receive_message(int)
+        if RequestType(end_request_message) != RequestType.END_REQUEST:
+            raise Exception("Invalid end request")
 
     def _receive_game_state(self):
         SYMBOLS_PER_CARD = self._receive_message(int)
@@ -368,6 +356,12 @@ class Client:
         else:
             raise Exception("Invalid message type")
         
+    def _send_message(self, message, message_type=int):
+        if message_type == int:
+            self.socket_client.send(message.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
+        else:
+            raise Exception("Invalid message type")
+        
     def _get_and_send_username(self):
         username = None
         while username is None or len(username) > MAX_PLAYER_NAME_LENGTH - 1:
@@ -376,15 +370,20 @@ class Client:
         self.socket_client.send(username.encode())
 
     def _sent_game_action(self, request_type: RequestType, action: GameAction, id, hash):
-        self.socket_client.send(request_type.value.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
-        self.socket_client.send(action.value.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
-        self.socket_client.send(id.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
-        self.socket_client.send(hash.to_bytes(INT_SIZE, byteorder=BYTE_ORDER))
+        self._send_message(request_type.value)
+        self._send_message(action.value)
+        self._send_message(id)
+        self._send_message(hash)
+        self._send_message(RequestType.END_REQUEST.value)
+        new_request_type = self._receive_message(int)
+        if RequestType(new_request_type) != RequestType.SEND_GAME_STATE:
+            raise Exception("Expected game state")
+        self._receive_game_state()
 
  
 
 def main():
-    app = QApplication(sys.argv)
+    # app = QApplication(sys.argv)
     client = Client()
     client.run()
     #window = DobbleMainWindow(client)

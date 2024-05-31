@@ -59,41 +59,59 @@ void set_player_card(game_t *game, player_state_t *player_state)
   }
 }
 
-void act_player(game_t *game, action_t *action, int current_player_id)
+return_code_t act_player(game_t *game, action_t *action, int current_player_id)
 {
   player_state_t *player_state = get_player_state_by_id(game, action->id);
+  return_code_t return_code;
 
   switch (action->action_type)
   {
   case CARD:
-    checking_guess(game, action, current_player_id);
+    return_code = checking_guess(game, action, current_player_id);
     break;
   case SWAP:
-    if (player_state->swaps_left > 0)
+    if (player_state->swaps_left > 0 && player_state->swaps_cooldown == 0)
     {
-      swap_cards(player_state, get_player_state_by_id(game, current_player_id));
+      return_code = swap_cards(player_state, get_player_state_by_id(game, current_player_id));
       player_state->swaps_left--;
+      return_code = SUCCESS;
+    }
+    else
+    {
+      return_code = ABILITY_NOT_AVAILABLE;
     }
     break;
   case FREEZE:
-    if (player_state->freezes_left > 0)
+    if (player_state->freezes_left > 0 && player_state->freezes_cooldown == 0)
     {
       player_state->is_frozen_count++;
       player_state->freezes_left--;
+      return_code = SUCCESS;
+    }
+    else
+    {
+      return_code = ABILITY_NOT_AVAILABLE;
     }
     break;
   case REROLL:
-    if (player_state->rerolls_left > 0)
+    if (player_state->rerolls_left > 0 && player_state->rerolls_cooldown == 0)
     {
       set_player_card(game, player_state);
       player_state->rerolls_left--;
+      return_code = SUCCESS;
+    }
+    else 
+    {
+      return_code = ABILITY_NOT_AVAILABLE;
     }
     break;
   }
+
+  return return_code;
 }
 
 
-void swap_cards(player_state_t *acting_player_state, player_state_t *target_player_state)
+return_code_t swap_cards(player_state_t *acting_player_state, player_state_t *target_player_state)
 {
   int temp_card[SYMBOLS_PER_CARD];
 
@@ -103,19 +121,38 @@ void swap_cards(player_state_t *acting_player_state, player_state_t *target_play
     acting_player_state->current_card[i] = target_player_state->current_card[i];
     target_player_state->current_card[i] = temp_card[i];
   }
+
+  return SUCCESS;
 }
 
-void checking_guess(game_t *game, action_t *action, int current_player_id)
+return_code_t checking_guess(game_t *game, action_t *action, int current_player_id)
 {
   player_state_t *player_state = get_player_state_by_id(game, current_player_id);
+  for (int i = 0; i < SYMBOLS_PER_CARD; i++)
+  {
+    if (action->id == player_state->current_card[i])
+    {
+      break;
+    }
+    else if (i == SYMBOLS_PER_CARD - 1)
+    {
+      return PLAYER_DOES_NOT_HAVE_THIS_SYMBOL;
+    }
+  }
   for(int i = 0; i < SYMBOLS_PER_CARD; i++)
   {
     if(action->id == game->current_top_card[i])
     {
       player_state->cards_in_hand_count--;
       set_player_card(game, player_state);
+      break;
+    }
+    else if (i == SYMBOLS_PER_CARD - 1)
+    {
+      return SYMBOL_DOES_NOT_MATCH_WITH_TOP_CARD;
     }
   }
+  return SUCCESS;
 }
 
 player_state_t *get_player_state_by_id(game_t *game, int id)
