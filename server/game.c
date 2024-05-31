@@ -26,6 +26,47 @@ void set_starting_card(game_t *game)
   }
 }
 
+void set_game_card(game_t *game)
+{
+  int flag = 1, random_number, number_from_player;
+
+  for (int i = 0; i < game->players_count; i++)
+  {
+    while (flag)
+    {
+      flag = 0;
+      number_from_player = game->player_states[i].current_card[rand() % SYMBOLS_PER_CARD];
+      for (int j = 0; j < i; j++)
+      {
+        if (game->current_top_card[j] == number_from_player)
+        {
+          flag = 1;
+        }
+      }
+    }
+    flag = 1;
+    game->current_top_card[i] = number_from_player;
+  }
+
+  for (int i = game->players_count; i < SYMBOLS_PER_CARD; i++)
+  {
+    while (flag)
+    {
+      flag = 0;
+      random_number = rand() % SYMBOLS_COUNT;
+      for (int j = 0; j < i; j++)
+      {
+        if (game->current_top_card[j] == random_number)
+        {
+          flag = 1;
+        }
+      }
+    }
+    flag = 1;
+    game->current_top_card[i] = random_number;
+  }
+}
+
 void set_player_card(game_t *game, player_state_t *player_state)
 {
   int flag = 1, random_number, shared_number;
@@ -61,7 +102,7 @@ void set_player_card(game_t *game, player_state_t *player_state)
 
 return_code_t act_player(game_t *game, action_t *action, int current_player_id)
 {
-  player_state_t *player_state = get_player_state_by_id(game, action->id);
+  player_state_t *player_state = get_player_state_by_id(game, current_player_id);
   return_code_t return_code;
 
   switch (action->action_type)
@@ -143,8 +184,6 @@ return_code_t checking_guess(game_t *game, action_t *action, int current_player_
   {
     if(action->id == game->current_top_card[i])
     {
-      player_state->cards_in_hand_count--;
-      set_player_card(game, player_state);
       break;
     }
     else if (i == SYMBOLS_PER_CARD - 1)
@@ -152,6 +191,11 @@ return_code_t checking_guess(game_t *game, action_t *action, int current_player_
       return SYMBOL_DOES_NOT_MATCH_WITH_TOP_CARD;
     }
   }
+  player_state->cards_in_hand_count--;
+
+  set_player_card(game, player_state);
+  set_game_card(game);
+
   return SUCCESS;
 }
 

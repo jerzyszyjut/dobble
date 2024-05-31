@@ -27,6 +27,7 @@ typedef struct
   struct sockaddr_in address;
   pthread_t *player_threads;
   int pipe_fds[PLAYER_PIPES_START + MAX_PLAYERS][2];
+  pthread_mutex_t mutex;
 } server_t;
 
 typedef struct
@@ -41,7 +42,8 @@ typedef enum request_type
   SEND_GAME_STATE,
   END_REQUEST,
   SEND_GAME_METADATA,
-  MAKE_ACTION
+  MAKE_ACTION,
+  FINISH_GAME
 } request_type_t;
 
 void init_server_player(player_thread_args_t *arg);

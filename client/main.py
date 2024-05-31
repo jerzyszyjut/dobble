@@ -6,14 +6,16 @@ from PyQt5.QtWidgets import (
     QWidget,
     QGridLayout,
     QLabel,
-    QVBoxLayout
+    QVBoxLayout,
 )
 import sys
 import os
 import random
-from PyQt5.QtCore import Qt, QRectF, QPointF, QRect, pyqtSignal
+from PyQt5.QtCore import Qt, QRectF, QPointF, QRect, pyqtSignal, QObject
 from PyQt5.QtGui import QPainter, QBrush, QPen, QPixmap, QFont
 from math import sin, cos, pi
+import threading
+import queue
 
 
 ADDRESS = "127.0.0.1"
@@ -54,6 +56,14 @@ class SymbolLabel(QLabel):
     def rescale(self, size):
         self.setPixmap(QPixmap(self.image_path).scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         self.setFixedSize(size, size)
+        
+    def update(self, image_path, symbol_name):
+        self.image_path = image_path
+        self.symbol_name = symbol_name
+        self.setPixmap(QPixmap(image_path).scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.setAlignment(Qt.AlignCenter)
+        self.setStyleSheet("border: 2px solid transparent;")
+        self.show()
 
 class DobbleCardWidget(QWidget):
     def __init__(self, card_name, cards=None, game_client=None, is_clickable=False):
@@ -139,8 +149,17 @@ class DobbleCardWidget(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.update_symbol_positions()
-
+        
+    def update(self, cards):
+        self.cards = cards
+        self.images = self.load_images()
+        for i, (image_path, name) in enumerate(self.images):
+            self.symbol_labels[i].update(image_path, str(name))
+        self.update_symbol_positions()
+            
     def symbol_clicked(self, symbol_name):
+        if self.game_client is not None:
+            self.game_client.send_card_move(int(symbol_name))
         print(f"Symbol clicked: {symbol_name}")       
         
         
@@ -148,7 +167,19 @@ class DobbleMainWindow(QWidget):
     def __init__(self, game_client):
         super().__init__()
         self.game_client = game_client
+        game_client.update_signal.connect(self.update_cards)
+        self.top_card = None
+        self.my_card = None
+        self.other_cards = []
         self.init_ui()
+        
+    def update_cards(self):
+        self.top_card.update(self.game_client.game.current_top_card)
+        self.my_card.update(self.game_client.game.player_states[self.game_client.my_id].current_card)
+        other_players = self.game_client.game.player_states.copy()
+        other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
+        for i, player in enumerate(other_players):
+            self.other_cards[i].update(player.current_card)
 
     def init_ui(self):
         self.setWindowTitle("Dobble")
@@ -156,11 +187,11 @@ class DobbleMainWindow(QWidget):
 
         layout = QGridLayout()
         
-        top_card = DobbleCardWidget("Top card", cards=self.game_client.game.current_top_card)
-        layout.addWidget(top_card, 0, 0, 2, 2)
+        self.top_card = DobbleCardWidget("Top card", cards=self.game_client.game.current_top_card)
+        layout.addWidget(self.top_card, 0, 0, 2, 2)
         
-        my_card = DobbleCardWidget("Your card", game_client=self.game_client, cards=self.game_client.game.player_states[self.game_client.my_id].current_card, is_clickable=True)    
-        layout.addWidget(my_card, 2, 0, 2, 2)
+        self.my_card = DobbleCardWidget("Your card", game_client=self.game_client, cards=self.game_client.game.player_states[self.game_client.my_id].current_card, is_clickable=True)    
+        layout.addWidget(self.my_card, 2, 0, 2, 2)
 
         other_players = self.game_client.game.player_states.copy()
         other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
@@ -168,7 +199,7 @@ class DobbleMainWindow(QWidget):
         for i, player in enumerate(other_players):
             player_card = DobbleCardWidget(f"Player {player.player_id}", cards=player.current_card)
             layout.addWidget(player_card, i // 2, i % 2 + 2)
-            
+            self.other_cards.append(player_card)
 
         self.setLayout(layout)
         self.show()
@@ -178,14 +209,13 @@ class RequestType(Enum):
     END_REQUEST = 1
     SEND_GAME_METADATA = 2
     MAKE_ACTION = 3
+    FINISH_GAME = 4
 
 class GameAction(Enum):
     CARD = 0
     SWAP = 1
     FREEZE = 2
     REROLL = 3
-
-
 
 class PlayerState:
     player_id: int
@@ -260,14 +290,16 @@ class Game:
             self.current_top_card = current_top_card
 
 
-class Client:
+class Client(QObject):
     socket_client: socket.socket
     game: Game
     started: bool
     finished: bool
     my_id: int
+    update_signal = pyqtSignal()
 
     def __init__(self):
+        super().__init__()
         self.socket_client = None
         self.game = Game()
         self.started = False
@@ -286,9 +318,21 @@ class Client:
 
         request_type = self._receive_message(int)
         self._receive_game_state()
-
-        self._sent_game_action(RequestType.MAKE_ACTION, GameAction.CARD, 1, 0)
-                        
+       
+        self.started = True
+        self.finished = False
+        
+        t1 = threading.Thread(target=self._receive_data_loop)
+        t1.start() 
+        
+    def _receive_data_loop(self):
+        while not self.finished:
+            request_type = self._receive_message(int)
+            if RequestType(request_type) == RequestType.SEND_GAME_STATE:
+                self._receive_game_state()
+            elif RequestType(request_type) == RequestType.FINISH_GAME:
+                self.finished = True
+            self.update_signal.emit()
         self.socket_client.close()
 
     def _receive_communication_metadata(self):
@@ -347,7 +391,6 @@ class Client:
             raise Exception("Invalid end request")
 
         self.game.update(player_states, players_count, current_top_card)
-        self.finished = True
 
     def _receive_message(self, message_type=int):
         if message_type == int:
@@ -375,19 +418,16 @@ class Client:
         self._send_message(id)
         self._send_message(hash)
         self._send_message(RequestType.END_REQUEST.value)
-        new_request_type = self._receive_message(int)
-        if RequestType(new_request_type) != RequestType.SEND_GAME_STATE:
-            raise Exception("Expected game state")
-        self._receive_game_state()
-
- 
+        
+    def send_card_move(self, card_id):
+        self._sent_game_action(RequestType.MAKE_ACTION, GameAction.CARD, card_id, 0)
 
 def main():
-    # app = QApplication(sys.argv)
+    app = QApplication(sys.argv)
     client = Client()
     client.run()
-    #window = DobbleMainWindow(client)
-    #sys.exit(app.exec_())
+    window = DobbleMainWindow(client)
+    sys.exit(app.exec_())
     
 
 if __name__ == "__main__":

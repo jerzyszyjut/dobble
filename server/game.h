@@ -40,6 +40,7 @@ typedef struct game
   player_state_t *player_states;
   int players_count;
   int current_top_card[SYMBOLS_PER_CARD];
+
 } game_t;
 
 typedef enum actions {
