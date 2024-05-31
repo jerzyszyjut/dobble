@@ -51,13 +51,42 @@ void *player_thread(void *arg)
 
   printf("Sent game state to player %d\n", player->player_id);
 
-  int moves = 4;
-
-  while (moves--)
+  while (1)
   { 
-    request_type_t request_type = recv(player->sockfd, &request_type, sizeof(request_type), 0);
+    request_type_t request_type;
+    int response = recv(player->sockfd, &request_type, sizeof(request_type), 0);
+    
+    if (response < 0)
+    {
+      perror("recv failed");
+      exit(1);
+    }
+
     printf("Received request type %d from player %d\n", request_type, player->player_id);
-    receive_game_action(args->server, args->game, player->player_id);
+
+    if (request_type == MAKE_ACTION)
+    {
+      receive_game_action(args->server, args->game, player->player_id);
+    }
+    else if (request_type == SEND_GAME_STATE)
+    {
+      send_game_state(args->server, args->game, player->player_id);
+    }
+    else if (request_type == FINISH_GAME)
+    {
+      break;
+    }
+    else
+    {
+      perror("Invalid request type");
+      exit(1);
+    }
+
+    // if (args->game->has_finished)
+    // {
+    //   break;
+    // }
+
     printf("Finished processing request type %d from player %d\n", request_type, player->player_id);
   }
 
@@ -270,31 +299,59 @@ void send_game_state(server_t *server, game_t* game, int player_id)
   send(player_sockfd, &request, sizeof(request), 0);
 }
 
+void send_finish_game(server_t *server)
+{
+  for (int i = 0; i < server->num_players; i++)
+  {
+    request_type_t request = FINISH_GAME;
+    send(server->player_list[i].sockfd, &request, sizeof(request), 0);
+    printf("Sent finish game request to player %d\n", i);
+  }
+}
+
 void receive_game_action(server_t *server, game_t *game, int player_id)
 {
   pthread_mutex_lock(&server->mutex);
+  
+  if (game->has_finished)
+  {
+    printf("Game has finished\n");
+    pthread_mutex_unlock(&server->mutex);
+    return;
+  }
+
   int player_sockfd = server->player_list[player_id].sockfd;
   action_t action;
-  recv(player_sockfd, &action.action_type, sizeof(action.action_type), 0);
-  recv(player_sockfd, &action.id, sizeof(action.id), 0);
-  recv(player_sockfd, &action.board_hash, sizeof(action.board_hash), 0);
+  recv(player_sockfd, &action.action_type, sizeof(int), 0);
+  recv(player_sockfd, &action.id, sizeof(int), 0);
+  recv(player_sockfd, &action.board_hash, sizeof(int), 0);
+
   printf("Received action type %d from player %d\n", action.action_type, player_id);
   act_player(game, &action, player_id);
   printf("Finished processing action type %d from player %d\n", action.action_type, player_id);
+  
   request_type_t end_request;
-  recv(player_sockfd, &end_request, sizeof(end_request), 0);
+  recv(player_sockfd, &end_request, sizeof(int), 0);
   if (end_request != END_REQUEST)
   {
     perror("Invalid end request");
     exit(1);
   }
   printf("Received end request from player %d\n", player_id);
+
   for (int i=0; i < server->num_players; i++)
   {
     printf("Sending game state to player %d\n", i);
     send_game_state(server, game, i);
     printf("Sent game state to player %d\n", i);
   }
+
+  if (game->has_finished)
+  {
+    printf("The game has finished\n");
+    send_finish_game(server);
+  }
+
   pthread_mutex_unlock(&server->mutex);
 }
 

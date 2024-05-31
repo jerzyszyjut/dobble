@@ -4,7 +4,7 @@
 
 #define SYMBOLS_PER_CARD 8
 #define SYMBOLS_COUNT 57
-#define DEFAULT_STARTING_CARDS_COUNT 13;
+#define DEFAULT_STARTING_CARDS_COUNT 10
 #define DEFAULT_SWAPS_COUNT 1
 #define SWAPS_COOLDOWN 3
 #define DEFAULT_FREEZES_COUNT 1
@@ -40,7 +40,7 @@ typedef struct game
   player_state_t *player_states;
   int players_count;
   int current_top_card[SYMBOLS_PER_CARD];
-
+  int has_finished;
 } game_t;
 
 typedef enum actions {
@@ -61,6 +61,8 @@ void set_starting_card(game_t *game);
 void set_player_card(game_t *game, player_state_t *player_state);
 
 return_code_t act_player(game_t *game, action_t *action, int current_player_id);
+
+void make_post_turn_actions(game_t *game);
 
 return_code_t swap_cards(player_state_t *acting_player_state, player_state_t *target_player_state);
 

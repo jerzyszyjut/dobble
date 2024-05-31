@@ -145,6 +145,8 @@ class DobbleCardWidget(QWidget):
         painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
         painter.setPen(QPen(Qt.black, 2))
         painter.drawEllipse(center, radius, radius)
+        
+        painter.end()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -323,15 +325,18 @@ class Client(QObject):
         self.finished = False
         
         t1 = threading.Thread(target=self._receive_data_loop)
-        t1.start() 
+        t1.start()
         
     def _receive_data_loop(self):
         while not self.finished:
             request_type = self._receive_message(int)
-            if RequestType(request_type) == RequestType.SEND_GAME_STATE:
+            request_type = RequestType(request_type)
+            if request_type == RequestType.SEND_GAME_STATE:
                 self._receive_game_state()
-            elif RequestType(request_type) == RequestType.FINISH_GAME:
+            elif request_type == RequestType.FINISH_GAME:
                 self.finished = True
+                self._send_message(RequestType.FINISH_GAME.value)
+                print("Game finished")
             self.update_signal.emit()
         self.socket_client.close()
 
@@ -420,6 +425,8 @@ class Client(QObject):
         self._send_message(RequestType.END_REQUEST.value)
         
     def send_card_move(self, card_id):
+        if self.finished:
+            return
         self._sent_game_action(RequestType.MAKE_ACTION, GameAction.CARD, card_id, 0)
 
 def main():

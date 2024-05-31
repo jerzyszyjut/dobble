@@ -5,7 +5,7 @@
 #include "game.h"
 
 #define MAX_PLAYER_NAME_LENGTH 32
-#define MAX_PLAYERS 1
+#define MAX_PLAYERS 2
 #define PORT 8080
 #define START_GAME_PIPE 0
 #define PLAYER_PIPES_START 1
@@ -61,6 +61,8 @@ void send_communication_metadata(server_t *server, int player_id);
 void send_game_metadata(server_t *server, int player_id); 
 
 void send_game_state(server_t *server, game_t* game, int player_id);
+
+void send_finish_game(server_t *server);
 
 void receive_game_action(server_t *server, game_t *game, int player_id);
 

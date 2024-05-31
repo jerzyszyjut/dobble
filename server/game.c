@@ -109,6 +109,7 @@ return_code_t act_player(game_t *game, action_t *action, int current_player_id)
   {
   case CARD:
     return_code = checking_guess(game, action, current_player_id);
+    make_post_turn_actions(game);
     break;
   case SWAP:
     if (player_state->swaps_left > 0 && player_state->swaps_cooldown == 0)
@@ -151,6 +152,34 @@ return_code_t act_player(game_t *game, action_t *action, int current_player_id)
   return return_code;
 }
 
+void make_post_turn_actions(game_t *game)
+{
+  for (int i = 0; i < game->players_count; i++)
+  {
+    if (game->player_states[i].swaps_cooldown > 0)
+    {
+      game->player_states[i].swaps_cooldown--;
+    }
+    if (game->player_states[i].freezes_cooldown > 0)
+    {
+      game->player_states[i].freezes_cooldown--;
+    }
+    if (game->player_states[i].rerolls_cooldown > 0)
+    {
+      game->player_states[i].rerolls_cooldown--;
+    }
+    if (game->player_states[i].is_frozen_count > 0)
+    {
+      game->player_states[i].is_frozen_count--;
+    }
+
+    if (game->player_states[i].cards_in_hand_count <= 0)
+    {
+      game->has_finished = 1;
+    }
+  }
+}
+
 
 return_code_t swap_cards(player_state_t *acting_player_state, player_state_t *target_player_state)
 {
@@ -191,7 +220,7 @@ return_code_t checking_guess(game_t *game, action_t *action, int current_player_
       return SYMBOL_DOES_NOT_MATCH_WITH_TOP_CARD;
     }
   }
-  player_state->cards_in_hand_count--;
+  player_state->cards_in_hand_count = player_state->cards_in_hand_count - 1;
 
   set_player_card(game, player_state);
   set_game_card(game);
@@ -220,6 +249,7 @@ void init_game_player(game_t *game, int index, int id)
 
   player_state->player_id = id;
   set_player_card(game, player_state);
+  player_state->cards_in_hand_count = DEFAULT_STARTING_CARDS_COUNT;
   player_state->swaps_left = DEFAULT_SWAPS_COUNT;
   player_state->swaps_cooldown = SWAPS_COOLDOWN;
   player_state->freezes_left = DEFAULT_FREEZES_COUNT;
@@ -235,6 +265,7 @@ void init_game(game_t *game, int *player_ids, int players_count)
 
   game->players_count = players_count;
   game->player_states = (player_state_t *)malloc(sizeof(player_state_t) * players_count);
+  game->has_finished = 0;
   set_starting_card(game);
 
   for (int i = 0; i < players_count; i++)
