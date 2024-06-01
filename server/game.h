@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #define SYMBOLS_PER_CARD 8
-#define SYMBOLS_COUNT 57
+#define SYMBOLS_COUNT 56
 #define DEFAULT_STARTING_CARDS_COUNT 10
 #define DEFAULT_SWAPS_COUNT 1
 #define SWAPS_COOLDOWN 3

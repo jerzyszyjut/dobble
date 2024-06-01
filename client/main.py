@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QLabel,
     QVBoxLayout,
+    QLineEdit,
+    QPushButton
 )
 import sys
 import os
@@ -64,8 +66,8 @@ class SymbolLabel(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("border: 2px solid transparent;")
         self.show()
-
-class DobbleCardWidget(QWidget):
+        
+class DobbleCardCanvas(QWidget):
     def __init__(self, card_name, cards=None, game_client=None, is_clickable=False):
         super().__init__()
         self.image_dir = "symbols"
@@ -82,19 +84,14 @@ class DobbleCardWidget(QWidget):
         image_files = sorted(image_files, key=lambda x: x[1])
         images = []
         for image_id in self.cards:
-            images.append(image_files[image_id - 1])
+            images.append(image_files[image_id])
         return images
 
     def initUI(self):
         self.setGeometry(100, 100, 200, 200)
 
         self.layout = QVBoxLayout(self)
-        self.title_label = QLabel(self.card_name)
-        self.title_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self.layout.addWidget(self.title_label)
-        
         self.card_widget = QWidget(self)
-        self.card_layout = QVBoxLayout(self.card_widget)
         self.layout.addWidget(self.card_widget)
 
         self.create_symbols()
@@ -108,12 +105,10 @@ class DobbleCardWidget(QWidget):
         self.update_symbol_positions()
 
     def update_symbol_positions(self):
-        y_offset = 20
+        center = QPointF(self.width() / 2, self.height() / 2)
+        radius = min(self.width(), self.height()) / 2 - 10
 
-        center = QPointF(self.width() / 2, self.height() / 2 + y_offset)
-        radius = min(self.width(), self.height() - y_offset) / 2 - 10
-
-        ratio = min(self.width(), self.height() - y_offset) / 300
+        ratio = min(self.width(), self.height()) / 300
         new_image_size = int(50 * ratio)
 
         angle_step = 360 / (len(self.symbol_labels) - 1)
@@ -138,10 +133,8 @@ class DobbleCardWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        y_offset = 20
-
-        center = QPointF(self.width() / 2, self.height() / 2 + y_offset)
-        radius = min(self.width(), self.height() - y_offset) / 2 - 10
+        center = QPointF(self.width() / 2, self.height() / 2)
+        radius = min(self.width(), self.height()) / 2 - 10
         painter.setBrush(QBrush(Qt.white, Qt.SolidPattern))
         painter.setPen(QPen(Qt.black, 2))
         painter.drawEllipse(center, radius, radius)
@@ -162,14 +155,90 @@ class DobbleCardWidget(QWidget):
     def symbol_clicked(self, symbol_name):
         if self.game_client is not None:
             self.game_client.send_card_move(int(symbol_name))
-        print(f"Symbol clicked: {symbol_name}")       
+     
+
+class DobbleCardWidget(QWidget):
+    def __init__(self, card_name, cards=None, game_client=None, is_clickable=False, player_id=None):
+        super().__init__()
+        self.is_clickable = is_clickable
+        self.card_name = card_name
+        self.cards = cards
+        self.game_client = game_client
+        self.player_id = player_id
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(100, 100, 200, 200)
+
+        self.layout = QGridLayout(self)
+        self.title_label = QLabel(self.card_name)
+        self.layout.addWidget(self.title_label, 0, 0)
+        if self.player_id != -1:
+            self.cards_in_hand_label = QLabel(f"Cards in hand: {self.game_client.game.player_states[self.game_client.my_id].cards_in_hand_count}")
+            self.layout.addWidget(self.cards_in_hand_label, 0, 1)
         
+        self.card_widget = DobbleCardCanvas(self.card_name, cards=self.cards, game_client=self.game_client, is_clickable=self.is_clickable)
+        self.layout.addWidget(self.card_widget, 1, 0, 2, 2)
         
+        if self.player_id != -1:
+            self.display_abilities()
+
+        self.show()
+        
+    def display_abilities(self):
+        self.abilities_label = QLabel("Abilities")
+        self.layout.addWidget(self.abilities_label, 3, 0)
+        is_top_card = self.player_id == -1
+        is_main_player_card = self.player_id == self.game_client.my_id
+       
+        if not is_top_card:
+            if not is_main_player_card:
+                self.swap_button = QPushButton("Swap")
+                self.swap_button.clicked.connect(self.handle_swap)
+                self.layout.addWidget(self.swap_button, 3, 1)
+                self.freeze_button = QPushButton("Freeze")
+                self.freeze_button.clicked.connect(self.handle_freeze)
+                self.layout.addWidget(self.freeze_button, 3, 2)
+            else:
+                self.reroll_button = QPushButton("Reroll")
+                self.reroll_button.clicked.connect(self.handle_reroll)
+                self.layout.addWidget(self.reroll_button, 3, 1)
+        
+        self.update_ability_buttons()
+            
+        self.show()
+        
+    def update_ability_buttons(self):
+        is_top_card = self.player_id == -1
+        is_main_player_card = self.player_id == self.game_client.my_id
+        if not is_top_card:
+            if not is_main_player_card:
+                self.swap_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].swaps_left == 0 or self.game_client.game.player_states[self.game_client.my_id].swaps_cooldown > 0)
+                self.freeze_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].freezes_left == 0 or self.game_client.game.player_states[self.game_client.my_id].freezes_cooldown > 0)
+            else:
+                self.reroll_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].rerolls_left == 0 or self.game_client.game.player_states[self.game_client.my_id].rerolls_cooldown > 0)
+
+    def update(self, cards):
+        self.cards_in_hand_label.setText(f"Cards in hand: {self.game_client.game.player_states[self.game_client.my_id].cards_in_hand_count}")
+        if self.player_id != -1:
+            self.update_ability_buttons()
+        self.card_widget.update(cards)
+        
+    def handle_swap(self):
+        self.game_client.send_swap()
+        
+    def handle_freeze(self):
+        self.game_client.send_freeze()
+        
+    def handle_reroll(self):
+        self.game_client.send_reroll()
+            
 class DobbleMainWindow(QWidget):
     def __init__(self, game_client):
         super().__init__()
         self.game_client = game_client
         game_client.update_signal.connect(self.update_cards)
+        game_client.end_game_signal.connect(self.handle_end_game)
         self.top_card = None
         self.my_card = None
         self.other_cards = []
@@ -181,30 +250,109 @@ class DobbleMainWindow(QWidget):
         other_players = self.game_client.game.player_states.copy()
         other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
         for i, player in enumerate(other_players):
+            if i >= len(self.other_cards):
+                break
             self.other_cards[i].update(player.current_card)
 
-    def init_ui(self):
-        self.setWindowTitle("Dobble")
-        self.setGeometry(100, 100, 800, 600)
+    def load_server_login_ui(self):
+        self.server_address_input = QLineEdit()
+        self.server_address_input.setPlaceholderText("Server address")
+        self.server_address_input.setText(ADDRESS)
+        self.layout.addWidget(self.server_address_input, 0, 0)
+        
+        self.server_port_input = QLineEdit()
+        self.server_port_input.setPlaceholderText("Server port")
+        self.server_port_input.setText(str(PORT))
+        self.layout.addWidget(self.server_port_input, 1, 0)
+        
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Username")
+        self.layout.addWidget(self.username_input, 2, 0)
+        
+        self.join_button = QPushButton("Join")
+        self.join_button.clicked.connect(self.handle_join)
+        self.layout.addWidget(self.join_button, 3, 0)
+        
+        self.show()
+        
+    def clear_server_login_ui(self):
+        self.layout.removeWidget(self.server_address_input)
+        self.layout.removeWidget(self.server_port_input)
+        self.layout.removeWidget(self.username_input)
+        self.layout.removeWidget(self.join_button)
+        self.server_address_input.deleteLater()
+        self.server_port_input.deleteLater()
+        self.username_input.deleteLater()
+        self.join_button.deleteLater() 
 
-        layout = QGridLayout()
+    def load_cards_ui(self):
+        self.top_card = DobbleCardWidget("Top card", game_client=self.game_client, cards=self.game_client.game.current_top_card, player_id=-1)
+        self.layout.addWidget(self.top_card, 0, 0, 2, 2)
         
-        self.top_card = DobbleCardWidget("Top card", cards=self.game_client.game.current_top_card)
-        layout.addWidget(self.top_card, 0, 0, 2, 2)
-        
-        self.my_card = DobbleCardWidget("Your card", game_client=self.game_client, cards=self.game_client.game.player_states[self.game_client.my_id].current_card, is_clickable=True)    
-        layout.addWidget(self.my_card, 2, 0, 2, 2)
+        self.my_card = DobbleCardWidget("Your card", game_client=self.game_client, cards=self.game_client.game.player_states[self.game_client.my_id].current_card, is_clickable=True, player_id=self.game_client.my_id) 
+        self.layout.addWidget(self.my_card, 2, 0, 2, 2)
 
         other_players = self.game_client.game.player_states.copy()
         other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
         
         for i, player in enumerate(other_players):
-            player_card = DobbleCardWidget(f"Player {player.player_id}", cards=player.current_card)
-            layout.addWidget(player_card, i // 2, i % 2 + 2)
+            player_card = DobbleCardWidget(f"Player {player.player_id}", game_client=self.game_client, cards=player.current_card, player_id=player.player_id)
+            self.layout.addWidget(player_card, i // 2, i % 2 + 2)
             self.other_cards.append(player_card)
 
-        self.setLayout(layout)
         self.show()
+        
+    def clear_cards_ui(self):
+        self.layout.removeWidget(self.top_card)
+        self.layout.removeWidget(self.my_card)
+        for card in self.other_cards:
+            self.layout.removeWidget(card)
+            card.deleteLater()
+        self.top_card.deleteLater()
+        self.my_card.deleteLater()
+        self.other_cards = []
+        
+    def load_end_game_ui(self):
+        self.clear_cards_ui()
+        self.end_game_label = QLabel("Game finished")
+        self.layout.addWidget(self.end_game_label, 0, 0)
+        self.player_scores_table = QGridLayout()
+        self.layout.addLayout(self.player_scores_table, 1, 0)
+        for i, player in enumerate(self.game_client.game.player_states):
+            player_label = QLabel(f"Player {player.player_id}: { player.cards_in_hand_count}")
+            self.player_scores_table.addWidget(player_label, i, 0)
+        self.close_button = QPushButton("Close")
+        self.close_button.clicked.connect(self.close)
+        self.layout.addWidget(self.close_button, 2, 0)
+        self.show()
+
+    def init_ui(self):
+        self.setWindowTitle("Dobble")
+        self.setGeometry(100, 100, 800, 600)
+        
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+        
+        self.load_server_login_ui()
+        
+    def closeEvent(self, event):
+        self.game_client.finished = True
+        self.game_client._send_finish_game()
+        self.game_client.receive_thread.join()
+        self.game_client.socket_client.close()
+        event.accept()
+        
+    def handle_end_game(self):
+        self.load_end_game_ui()
+        
+    def handle_join(self):
+        self.join_button.setDisabled(True)
+        address = self.server_address_input.text()
+        port = int(self.server_port_input.text())
+        username = self.username_input.text()
+        self.game_client.run(address, port, username)
+        self.clear_server_login_ui()
+        self.load_cards_ui()
 
 class RequestType(Enum):
     SEND_GAME_STATE = 0
@@ -299,6 +447,8 @@ class Client(QObject):
     finished: bool
     my_id: int
     update_signal = pyqtSignal()
+    end_game_signal = pyqtSignal()
+    receive_thread = None
 
     def __init__(self):
         super().__init__()
@@ -307,13 +457,19 @@ class Client(QObject):
         self.started = False
         self.finished = False
 
-    def run(self):
+    def run(self, address=ADDRESS, port=PORT, username="player"):
         self.socket_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket_client.connect((ADDRESS, PORT))
+        
+        try:
+            self.socket_client.connect((address, port))
+        except ConnectionRefusedError:
+            print("Server is not available")
+            self.end_game_signal.emit()
+            return
 
         self._receive_communication_metadata()
         
-        self._get_and_send_username()
+        self._send_username(username)
 
         request_type = self._receive_message(int)
         self._receive_game_metadata()
@@ -324,8 +480,8 @@ class Client(QObject):
         self.started = True
         self.finished = False
         
-        t1 = threading.Thread(target=self._receive_data_loop)
-        t1.start()
+        self.receive_thread = threading.Thread(target=self._receive_data_loop)
+        self.receive_thread.start()
         
     def _receive_data_loop(self):
         while not self.finished:
@@ -335,10 +491,14 @@ class Client(QObject):
                 self._receive_game_state()
             elif request_type == RequestType.FINISH_GAME:
                 self.finished = True
-                self._send_message(RequestType.FINISH_GAME.value)
+                self._send_finish_game()
+                self.end_game_signal.emit()
                 print("Game finished")
             self.update_signal.emit()
         self.socket_client.close()
+        
+    def _send_finish_game(self):
+        self._send_message(RequestType.FINISH_GAME.value)
 
     def _receive_communication_metadata(self):
         global INT_SIZE, BYTE_ORDER
@@ -410,11 +570,9 @@ class Client(QObject):
         else:
             raise Exception("Invalid message type")
         
-    def _get_and_send_username(self):
-        username = None
-        while username is None or len(username) > MAX_PLAYER_NAME_LENGTH - 1:
-            username = input("Enter your username: ")
-
+    def _send_username(self, username):
+        if len(username) > MAX_PLAYER_NAME_LENGTH:
+            username = username[:MAX_PLAYER_NAME_LENGTH]
         self.socket_client.send(username.encode())
 
     def _sent_game_action(self, request_type: RequestType, action: GameAction, id, hash):
@@ -432,7 +590,6 @@ class Client(QObject):
 def main():
     app = QApplication(sys.argv)
     client = Client()
-    client.run()
     window = DobbleMainWindow(client)
     sys.exit(app.exec_())
     
