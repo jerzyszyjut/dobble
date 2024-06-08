@@ -218,17 +218,21 @@ class DobbleCardWidget(QWidget):
             else:
                 self.reroll_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].rerolls_left == 0 or self.game_client.game.player_states[self.game_client.my_id].rerolls_cooldown > 0)
 
-    def update(self, cards):
-        self.cards_in_hand_label.setText(f"Cards in hand: {self.game_client.game.player_states[self.game_client.my_id].cards_in_hand_count}")
+    def update(self):
         if self.player_id != -1:
+            current_player_state = self.game_client.game.player_states[self.player_id]
+            cards = current_player_state.current_card
+            self.cards_in_hand_label.setText(f"Cards in hand: {current_player_state.cards_in_hand_count}")
             self.update_ability_buttons()
+        else:
+            cards = self.game_client.game.current_top_card
         self.card_widget.update(cards)
         
     def handle_swap(self):
-        self.game_client.send_swap()
+        self.game_client.send_swap(self.player_id)
         
     def handle_freeze(self):
-        self.game_client.send_freeze()
+        self.game_client.send_freeze(self.player_id)
         
     def handle_reroll(self):
         self.game_client.send_reroll()
@@ -245,14 +249,12 @@ class DobbleMainWindow(QWidget):
         self.init_ui()
         
     def update_cards(self):
-        self.top_card.update(self.game_client.game.current_top_card)
-        self.my_card.update(self.game_client.game.player_states[self.game_client.my_id].current_card)
+        self.top_card.update()
+        self.my_card.update()
         other_players = self.game_client.game.player_states.copy()
         other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
-        for i, player in enumerate(other_players):
-            if i >= len(self.other_cards):
-                break
-            self.other_cards[i].update(player.current_card)
+        for other_card in self.other_cards:
+            other_card.update()
 
     def load_server_login_ui(self):
         self.server_address_input = QLineEdit()
@@ -377,7 +379,7 @@ class PlayerState:
     freezes_cooldown: int
     rerolls_left: int
     rerolls_cooldown: int
-    is_frozen: bool
+    is_frozen_count: int
 
     def __init__(
         self,
@@ -390,7 +392,7 @@ class PlayerState:
         freezes_cooldown: int = 3,
         rerolls_left: int = 1,
         rerolls_cooldown: int = 3,
-        is_frozen: bool = False,
+        is_frozen_count: int = 0,
     ):
         self.player_id = player_id
         self.current_card = current_card
@@ -401,7 +403,7 @@ class PlayerState:
         self.freezes_cooldown = freezes_cooldown
         self.rerolls_left = rerolls_left
         self.rerolls_cooldown = rerolls_cooldown
-        self.is_frozen = is_frozen
+        self.is_frozen_count = is_frozen_count
 
         if current_card is None:
             self.current_card = [i for i in range(1, SYMBOLS_PER_CARD + 1)]
@@ -535,7 +537,7 @@ class Client(QObject):
             freezes_cooldown = self._receive_message(int)
             rerolls_left = self._receive_message(int)
             rerolls_cooldown = self._receive_message(int)
-            is_frozen = bool(self._receive_message(int))
+            is_frozen_count = self._receive_message(int)
             player_states.append(
                 PlayerState(
                     player_id,
@@ -547,7 +549,7 @@ class Client(QObject):
                     freezes_cooldown,
                     rerolls_left,
                     rerolls_cooldown,
-                    is_frozen,
+                    is_frozen_count,
                 )
             )
 
@@ -575,7 +577,7 @@ class Client(QObject):
             username = username[:MAX_PLAYER_NAME_LENGTH]
         self.socket_client.send(username.encode())
 
-    def _sent_game_action(self, request_type: RequestType, action: GameAction, id, hash):
+    def _send_game_action(self, request_type: RequestType, action: GameAction, id, hash):
         self._send_message(request_type.value)
         self._send_message(action.value)
         self._send_message(id)
@@ -585,7 +587,31 @@ class Client(QObject):
     def send_card_move(self, card_id):
         if self.finished:
             return
-        self._sent_game_action(RequestType.MAKE_ACTION, GameAction.CARD, card_id, 0)
+        self._send_game_action(RequestType.MAKE_ACTION, GameAction.CARD, card_id, 0)
+
+    def send_swap(self, target_player_id):
+        self._send_game_action(
+            RequestType.MAKE_ACTION,
+            GameAction.SWAP,
+            target_player_id,
+            0 
+        )
+        
+    def send_freeze(self, target_player_id):
+        self._send_game_action(
+            RequestType.MAKE_ACTION,
+            GameAction.FREEZE,
+            target_player_id,
+            0
+        )
+        
+    def send_reroll(self):
+        self._send_game_action(
+            RequestType.MAKE_ACTION,
+            GameAction.REROLL,
+            0,
+            0
+        )
 
 def main():
     app = QApplication(sys.argv)

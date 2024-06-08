@@ -105,6 +105,11 @@ return_code_t act_player(game_t *game, action_t *action, int current_player_id)
   player_state_t *player_state = get_player_state_by_id(game, current_player_id);
   return_code_t return_code;
 
+  if (player_state->is_frozen_count > 0)
+  {
+    return PLAYER_IS_FROZEN;
+  }
+
   switch (action->action_type)
   {
   case CARD:
@@ -114,7 +119,8 @@ return_code_t act_player(game_t *game, action_t *action, int current_player_id)
   case SWAP:
     if (player_state->swaps_left > 0 && player_state->swaps_cooldown == 0)
     {
-      return_code = swap_cards(player_state, get_player_state_by_id(game, current_player_id));
+      player_state_t *target_player_state = get_player_state_by_id(game, action->id); 
+      return_code = swap_cards(player_state, target_player_state);
       player_state->swaps_left--;
       return_code = SUCCESS;
     }
@@ -126,7 +132,8 @@ return_code_t act_player(game_t *game, action_t *action, int current_player_id)
   case FREEZE:
     if (player_state->freezes_left > 0 && player_state->freezes_cooldown == 0)
     {
-      player_state->is_frozen_count++;
+      player_state_t *target_player_state = get_player_state_by_id(game, action->id); 
+      target_player_state->is_frozen_count++;
       player_state->freezes_left--;
       return_code = SUCCESS;
     }
@@ -251,11 +258,11 @@ void init_game_player(game_t *game, int index, int id)
   set_player_card(game, player_state);
   player_state->cards_in_hand_count = DEFAULT_STARTING_CARDS_COUNT;
   player_state->swaps_left = DEFAULT_SWAPS_COUNT;
-  player_state->swaps_cooldown = SWAPS_COOLDOWN;
+  player_state->swaps_cooldown = 0;
   player_state->freezes_left = DEFAULT_FREEZES_COUNT;
-  player_state->freezes_cooldown = FREEZES_COOLDOWN;
+  player_state->freezes_cooldown = 0;
   player_state->rerolls_left = DEFAULT_REROLLS_COUNT;
-  player_state->rerolls_cooldown = REROLLS_COOLDOWN;
+  player_state->rerolls_cooldown = 0;
   player_state->is_frozen_count = 0;
 }
 
