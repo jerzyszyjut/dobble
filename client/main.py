@@ -86,6 +86,7 @@ class DobbleCardCanvas(QWidget):
         images = []
         for image_id in self.cards:
             images.append(image_files[image_id])
+        random.Random(2137).shuffle(images) 
         return images
 
     def initUI(self):
@@ -247,7 +248,7 @@ class DobbleCardWidget(QWidget):
         else:
             cards = self.game_client.game.current_top_card
         if self.player_id != -1 and self.player_id == self.game_client.my_id:
-            self.title_label.setText(f"{self.card_name} (You)")
+            self.title_label.setText(f"{self.card_name}")
         elif self.player_id != -1:
             player_name = self.game_client.game.player_states[self.player_id].name
             self.title_label.setText(player_name)
@@ -368,7 +369,7 @@ class DobbleMainWindow(QWidget):
         self.game_client._send_finish_game()
         self.game_client.receive_thread.join()
         self.game_client.socket_client.close()
-        event.accept()
+        sys.exit()
         
     def handle_end_game(self):
         self.load_end_game_ui()
@@ -427,6 +428,7 @@ class PlayerState:
     def __init__(
         self,
         player_id: int = 0,
+        name: str = "",
         current_card: List[int] = None,
         cards_in_hand_count: int = 13,
         swaps_left: int = 1,
@@ -436,9 +438,9 @@ class PlayerState:
         rerolls_left: int = 1,
         rerolls_cooldown: int = 3,
         is_frozen_count: int = 0,
-        name: str = "",
     ):
         self.player_id = player_id
+        self.name = name
         self.current_card = current_card
         self.cards_in_hand_count = cards_in_hand_count
         self.swaps_left = swaps_left
@@ -448,7 +450,6 @@ class PlayerState:
         self.rerolls_left = rerolls_left
         self.rerolls_cooldown = rerolls_cooldown
         self.is_frozen_count = is_frozen_count
-        self.name = name
 
         if current_card is None:
             self.current_card = [i for i in range(1, SYMBOLS_PER_CARD + 1)]
@@ -594,6 +595,7 @@ class Client(QObject):
             player_states.append(
                 PlayerState(
                     player_id,
+                    name,
                     current_card,
                     cards_in_hand_count,
                     swaps_left,

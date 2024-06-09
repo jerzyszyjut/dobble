@@ -69,10 +69,9 @@ void set_game_card(game_t *game)
 
 void set_player_card(game_t *game, player_state_t *player_state)
 {
-  int flag = 1, random_number, shared_number;
-  shared_number = game->current_top_card[rand() % SYMBOLS_PER_CARD];
+  int flag = 1, random_number;
   
-  player_state->current_card[0] = shared_number;
+  player_state->current_card[0] = game->current_top_card[rand() % SYMBOLS_PER_CARD];
 
   for (int i = 1; i < SYMBOLS_PER_CARD; i++)
   {
@@ -229,8 +228,12 @@ return_code_t checking_guess(game_t *game, action_t *action, int current_player_
   }
   player_state->cards_in_hand_count = player_state->cards_in_hand_count - 1;
 
+  for (int i = 0; i < SYMBOLS_PER_CARD; i++)
+  {
+    game->current_top_card[i] = player_state->current_card[i];
+  }
+
   set_player_card(game, player_state);
-  set_game_card(game);
 
   return SUCCESS;
 }

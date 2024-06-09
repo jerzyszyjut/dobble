@@ -82,11 +82,6 @@ void *player_thread(void *arg)
       exit(1);
     }
 
-    // if (args->game->has_finished)
-    // {
-    //   break;
-    // }
-
     printf("Finished processing request type %d from player %d\n", request_type, player->player_id);
   }
 
