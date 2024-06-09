@@ -57,9 +57,11 @@ typedef struct action {
   int board_hash;
 } action_t;
 
+int calculate_board_hash(game_t *game);
+
 void set_starting_card(game_t *game);
 
-void set_player_card(game_t *game, player_state_t *player_state);
+void set_player_card(player_state_t *player_state);
 
 return_code_t act_player(game_t *game, action_t *action, int current_player_id);
 
