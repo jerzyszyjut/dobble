@@ -43,7 +43,8 @@ typedef enum request_type
   END_REQUEST,
   SEND_GAME_METADATA,
   MAKE_ACTION,
-  FINISH_GAME
+  FINISH_GAME,
+  SEND_RETURN_CODE
 } request_type_t;
 
 void init_server_player(player_thread_args_t *arg);

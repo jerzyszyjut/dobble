@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #define SYMBOLS_PER_CARD 8
 #define SYMBOLS_COUNT 56
@@ -11,7 +12,6 @@
 #define FREEZES_COOLDOWN 3
 #define DEFAULT_REROLLS_COUNT 1
 #define REROLLS_COOLDOWN 3
-
 
 typedef enum return_code {
   SUCCESS,

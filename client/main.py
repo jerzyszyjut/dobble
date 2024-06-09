@@ -8,7 +8,8 @@ from PyQt5.QtWidgets import (
     QLabel,
     QVBoxLayout,
     QLineEdit,
-    QPushButton
+    QPushButton,
+    QMessageBox
 )
 import sys
 import os
@@ -193,14 +194,24 @@ class DobbleCardWidget(QWidget):
        
         if not is_top_card:
             if not is_main_player_card:
-                self.swap_button = QPushButton("Swap")
+                swaps_left = self.game_client.game.player_states[self.game_client.my_id].swaps_left
+                swaps_cooldown = self.game_client.game.player_states[self.game_client.my_id].swaps_cooldown
+                swaps_message = f"Swaps left: {swaps_left}, Cooldown: {swaps_cooldown}"
+                self.swap_button = QPushButton(swaps_message)
                 self.swap_button.clicked.connect(self.handle_swap)
                 self.layout.addWidget(self.swap_button, 3, 1)
-                self.freeze_button = QPushButton("Freeze")
+                
+                freezes_left = self.game_client.game.player_states[self.game_client.my_id].freezes_left
+                freezes_cooldown = self.game_client.game.player_states[self.game_client.my_id].freezes_cooldown
+                freezes_message = f"Freezes left: {freezes_left}, Cooldown: {freezes_cooldown}"
+                self.freeze_button = QPushButton(freezes_message)
                 self.freeze_button.clicked.connect(self.handle_freeze)
                 self.layout.addWidget(self.freeze_button, 3, 2)
             else:
-                self.reroll_button = QPushButton("Reroll")
+                rerolls_left = self.game_client.game.player_states[self.game_client.my_id].rerolls_left
+                rerolls_cooldown = self.game_client.game.player_states[self.game_client.my_id].rerolls_cooldown
+                rerolls_message = f"Rerolls left: {rerolls_left}, Cooldown: {rerolls_cooldown}"
+                self.reroll_button = QPushButton(rerolls_message)
                 self.reroll_button.clicked.connect(self.handle_reroll)
                 self.layout.addWidget(self.reroll_button, 3, 1)
         
@@ -213,9 +224,18 @@ class DobbleCardWidget(QWidget):
         is_main_player_card = self.player_id == self.game_client.my_id
         if not is_top_card:
             if not is_main_player_card:
+                swaps_left = self.game_client.game.player_states[self.game_client.my_id].swaps_left
+                swaps_cooldown = self.game_client.game.player_states[self.game_client.my_id].swaps_cooldown
+                self.swap_button.setText(f"Swaps left: {swaps_left}, Cooldown: {swaps_cooldown}")
                 self.swap_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].swaps_left == 0 or self.game_client.game.player_states[self.game_client.my_id].swaps_cooldown > 0)
+                freezes_left = self.game_client.game.player_states[self.game_client.my_id].freezes_left
+                freezes_cooldown = self.game_client.game.player_states[self.game_client.my_id].freezes_cooldown
+                self.freeze_button.setText(f"Freezes left: {freezes_left}, Cooldown: {freezes_cooldown}")
                 self.freeze_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].freezes_left == 0 or self.game_client.game.player_states[self.game_client.my_id].freezes_cooldown > 0)
             else:
+                rerolls_left = self.game_client.game.player_states[self.game_client.my_id].rerolls_left
+                rerolls_cooldown = self.game_client.game.player_states[self.game_client.my_id].rerolls_cooldown
+                self.reroll_button.setText(f"Rerolls left: {rerolls_left}, Cooldown: {rerolls_cooldown}")
                 self.reroll_button.setDisabled(self.game_client.game.player_states[self.game_client.my_id].rerolls_left == 0 or self.game_client.game.player_states[self.game_client.my_id].rerolls_cooldown > 0)
 
     def update(self):
@@ -226,6 +246,11 @@ class DobbleCardWidget(QWidget):
             self.update_ability_buttons()
         else:
             cards = self.game_client.game.current_top_card
+        if self.player_id != -1 and self.player_id == self.game_client.my_id:
+            self.title_label.setText(f"{self.card_name} (You)")
+        elif self.player_id != -1:
+            player_name = self.game_client.game.player_states[self.player_id].name
+            self.title_label.setText(player_name)
         self.card_widget.update(cards)
         
     def handle_swap(self):
@@ -243,6 +268,7 @@ class DobbleMainWindow(QWidget):
         self.game_client = game_client
         game_client.update_signal.connect(self.update_cards)
         game_client.end_game_signal.connect(self.handle_end_game)
+        game_client.update_message.connect(self.display_message)
         self.top_card = None
         self.my_card = None
         self.other_cards = []
@@ -289,17 +315,17 @@ class DobbleMainWindow(QWidget):
 
     def load_cards_ui(self):
         self.top_card = DobbleCardWidget("Top card", game_client=self.game_client, cards=self.game_client.game.current_top_card, player_id=-1)
-        self.layout.addWidget(self.top_card, 0, 0, 2, 2)
+        self.layout.addWidget(self.top_card, 0, 0)
         
         self.my_card = DobbleCardWidget("Your card", game_client=self.game_client, cards=self.game_client.game.player_states[self.game_client.my_id].current_card, is_clickable=True, player_id=self.game_client.my_id) 
-        self.layout.addWidget(self.my_card, 2, 0, 2, 2)
+        self.layout.addWidget(self.my_card, 1, 0)
 
         other_players = self.game_client.game.player_states.copy()
         other_players = [player for player in other_players if player.player_id != self.game_client.my_id]
         
         for i, player in enumerate(other_players):
-            player_card = DobbleCardWidget(f"Player {player.player_id}", game_client=self.game_client, cards=player.current_card, player_id=player.player_id)
-            self.layout.addWidget(player_card, i // 2, i % 2 + 2)
+            player_card = DobbleCardWidget(player.name, game_client=self.game_client, cards=player.current_card, player_id=player.player_id)
+            self.layout.addWidget(player_card, i // 2, i % 2 + 1)
             self.other_cards.append(player_card)
 
         self.show()
@@ -354,7 +380,14 @@ class DobbleMainWindow(QWidget):
         username = self.username_input.text()
         self.game_client.run(address, port, username)
         self.clear_server_login_ui()
-        self.load_cards_ui()
+        self.load_cards_ui() 
+        
+    def display_message(self, message: str) -> None:
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(message)
+        msg.setWindowTitle("Message")
+        msg.exec_()
 
 class RequestType(Enum):
     SEND_GAME_STATE = 0
@@ -362,12 +395,21 @@ class RequestType(Enum):
     SEND_GAME_METADATA = 2
     MAKE_ACTION = 3
     FINISH_GAME = 4
+    SEND_RETURN_CODE = 5
 
 class GameAction(Enum):
     CARD = 0
     SWAP = 1
     FREEZE = 2
     REROLL = 3
+    
+class ReturnCode(Enum):
+    SUCCESS = 0
+    SYMBOL_DOES_NOT_MATCH_WITH_TOP_CARD = 1
+    PLAYER_DOES_NOT_HAVE_THIS_SYMBOL = 2
+    ABILITY_NOT_AVAILABLE = 3
+    PLAYER_IS_FROZEN = 4
+    ERROR = 5
 
 class PlayerState:
     player_id: int
@@ -380,6 +422,7 @@ class PlayerState:
     rerolls_left: int
     rerolls_cooldown: int
     is_frozen_count: int
+    name: str
 
     def __init__(
         self,
@@ -393,6 +436,7 @@ class PlayerState:
         rerolls_left: int = 1,
         rerolls_cooldown: int = 3,
         is_frozen_count: int = 0,
+        name: str = "",
     ):
         self.player_id = player_id
         self.current_card = current_card
@@ -404,6 +448,7 @@ class PlayerState:
         self.rerolls_left = rerolls_left
         self.rerolls_cooldown = rerolls_cooldown
         self.is_frozen_count = is_frozen_count
+        self.name = name
 
         if current_card is None:
             self.current_card = [i for i in range(1, SYMBOLS_PER_CARD + 1)]
@@ -450,6 +495,7 @@ class Client(QObject):
     my_id: int
     update_signal = pyqtSignal()
     end_game_signal = pyqtSignal()
+    update_message = pyqtSignal(str)
     receive_thread = None
 
     def __init__(self):
@@ -496,10 +542,16 @@ class Client(QObject):
                 self._send_finish_game()
                 self.end_game_signal.emit()
                 print("Game finished")
+            elif request_type == RequestType.SEND_RETURN_CODE:
+                return_code = self._receive_message(int)
+                if ReturnCode(return_code) != ReturnCode.SUCCESS:
+                    self.update_message.emit(ReturnCode(return_code).name)
             self.update_signal.emit()
         self.socket_client.close()
         
     def _send_finish_game(self):
+        if self.finished:
+            return
         self._send_message(RequestType.FINISH_GAME.value)
 
     def _receive_communication_metadata(self):
@@ -527,6 +579,7 @@ class Client(QObject):
         player_states = []
         for _ in range(players_count):
             player_id = self._receive_message(int)
+            name = self._receive_message(str)
             current_card = []
             for _ in range(SYMBOLS_PER_CARD):
                 current_card.append(self._receive_message(int))
@@ -563,6 +616,9 @@ class Client(QObject):
         if message_type == int:
             message = self.socket_client.recv(INT_SIZE)
             return int.from_bytes(message, byteorder=BYTE_ORDER)
+        elif message_type == str:
+            message = self.socket_client.recv(MAX_PLAYER_NAME_LENGTH)
+            return message.decode()
         else:
             raise Exception("Invalid message type")
         

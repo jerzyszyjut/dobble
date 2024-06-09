@@ -283,7 +283,9 @@ void send_game_state(server_t *server, game_t* game, int player_id)
   send(player_sockfd, &game->players_count, sizeof(game->players_count), 0);
   for(int i = 0; i < game->players_count; i++) {
     player_state_t player = game->player_states[i];
+    player_t player_info = server->player_list[i];
     send(player_sockfd, &player.player_id, sizeof(player.player_id), 0);
+    send(player_sockfd, &player_info.name, MAX_PLAYER_NAME_LENGTH, 0);
     send(player_sockfd, &player.current_card, SYMBOLS_PER_CARD * sizeof(int), 0);
     send(player_sockfd, &player.cards_in_hand_count, sizeof(player.cards_in_hand_count), 0);
     send(player_sockfd, &player.swaps_left, sizeof(player.swaps_left), 0);
@@ -327,7 +329,8 @@ void receive_game_action(server_t *server, game_t *game, int player_id)
   recv(player_sockfd, &action.board_hash, sizeof(int), 0);
 
   printf("Received action type %d from player %d\n", action.action_type, player_id);
-  act_player(game, &action, player_id);
+  return_code_t return_code_value = act_player(game, &action, player_id);
+  printf("return code value %d\n", return_code_value);
   printf("Finished processing action type %d from player %d\n", action.action_type, player_id);
   
   request_type_t end_request;
@@ -338,6 +341,10 @@ void receive_game_action(server_t *server, game_t *game, int player_id)
     exit(1);
   }
   printf("Received end request from player %d\n", player_id);
+
+  request_type_t request = SEND_RETURN_CODE;
+  send(player_sockfd, &request, sizeof(request), 0);
+  send(player_sockfd, &return_code_value, sizeof(int), 0); 
 
   for (int i=0; i < server->num_players; i++)
   {
