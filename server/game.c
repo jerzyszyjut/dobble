@@ -68,16 +68,34 @@ int calculate_board_hash(game_t *game)
   int check_sum = 0;
   for (int i=0; i<SYMBOLS_PER_CARD; i++)
   {
-    check_sum += game->current_top_card[i];
+    check_sum += game->current_top_card[i] * (i+1);
+    check_sum %= CHECKSUM_MODULO;
   }
-  
+  for (int i=0; i<game->players_count; i++)
+  {
+    for (int j=0; j<SYMBOLS_PER_CARD; j++)
+    {
+      check_sum += game->player_states[i].current_card[j] * (i+1) * (j+1);
+      check_sum %= CHECKSUM_MODULO;
+    }
+  }
+  for (int i=0; i<game->players_count; i++)
+  {
+    check_sum += (game->player_states[i].swaps_left * (i+1) * 100) % CHECKSUM_MODULO;
+    check_sum += (game->player_states[i].swaps_cooldown * (i+1) * 1000) % CHECKSUM_MODULO;
+    check_sum += (game->player_states[i].freezes_left * (i+1) * 10000) % CHECKSUM_MODULO;
+    check_sum += (game->player_states[i].freezes_cooldown * (i+1) * 100000) % CHECKSUM_MODULO;
+    check_sum += (game->player_states[i].rerolls_left * (i+1) * 1000000) % CHECKSUM_MODULO;
+    check_sum += (game->player_states[i].rerolls_cooldown * (i+1) * 10000000) % CHECKSUM_MODULO;
+  }
+  return check_sum;
 }
 
 void set_game_card(game_t *game)
 {
   for (int i = 0; i < SYMBOLS_PER_CARD; i++)
   {
-    game->current_top_card[i] = CARDS[used_cards_starting_index + used_cards_count][i];
+    game->current_top_card[i] = CARDS[(used_cards_starting_index + used_cards_count) % SYMBOLS_COUNT][i];
   }
   used_cards_count++;
 }
@@ -86,7 +104,7 @@ void set_player_card(player_state_t *player_state)
 {
   for (int i = 0; i < SYMBOLS_PER_CARD; i++)
   {
-    player_state->current_card[i] = CARDS[used_cards_starting_index + used_cards_count][i];
+    player_state->current_card[i] = CARDS[(used_cards_starting_index + used_cards_count) % SYMBOLS_COUNT][i];
   }
   used_cards_count++;
 }

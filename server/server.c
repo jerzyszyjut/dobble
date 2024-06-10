@@ -324,8 +324,15 @@ void receive_game_action(server_t *server, game_t *game, int player_id)
   recv(player_sockfd, &action.board_hash, sizeof(int), 0);
 
   printf("Received action type %d from player %d\n", action.action_type, player_id);
-  return_code_t return_code_value = act_player(game, &action, player_id);
-  printf("return code value %d\n", return_code_value);
+  return_code_t return_code_value;
+  if(action.board_hash != calculate_board_hash(game))
+  {
+    return_code_value = INCORRECT_BOARD_HASH;
+  }
+  else
+  {
+    return_code_value = act_player(game, &action, player_id);
+  }
   printf("Finished processing action type %d from player %d\n", action.action_type, player_id);
   
   request_type_t end_request;

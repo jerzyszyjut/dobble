@@ -27,6 +27,7 @@ MAX_PLAYER_NAME_LENGTH = 32
 SYMBOLS_PER_CARD = 8
 INT_SIZE = 4
 BYTE_ORDER = "little"
+MODULO_CHECKSUM = 1000000007
 
 class SymbolLabel(QLabel):
     clicked = pyqtSignal(str)
@@ -411,6 +412,7 @@ class ReturnCode(Enum):
     ABILITY_NOT_AVAILABLE = 3
     PLAYER_IS_FROZEN = 4
     ERROR = 5
+    INCORRECT_BOARD_HASH = 6
 
 class PlayerState:
     player_id: int
@@ -486,6 +488,22 @@ class Game:
             self.players_count = players_count
         if current_top_card is not None:
             self.current_top_card = current_top_card
+
+    def calculate_checksum(self):
+        checksum = 0
+        for i in range(SYMBOLS_PER_CARD):
+            checksum += (self.current_top_card[i] * (i + 1)) % MODULO_CHECKSUM
+        for i in range(self.players_count):
+            for j in range(SYMBOLS_PER_CARD):
+                checksum += (self.player_states[i].current_card[j] * (i + 1) * (j + 1)) % MODULO_CHECKSUM
+        for i in range(self.players_count):
+            checksum += (self.player_states[i].swaps_left * (i + 1) * 100) % MODULO_CHECKSUM
+            checksum += (self.player_states[i].swaps_cooldown * (i + 1) * 1000) % MODULO_CHECKSUM
+            checksum += (self.player_states[i].freezes_left * (i + 1) * 10000) % MODULO_CHECKSUM
+            checksum += (self.player_states[i].freezes_cooldown * (i + 1) * 100000) % MODULO_CHECKSUM
+            checksum += (self.player_states[i].rerolls_left * (i + 1) * 1000000) % MODULO_CHECKSUM
+            checksum += (self.player_states[i].rerolls_cooldown * (i + 1) * 10000000) % MODULO_CHECKSUM
+        return checksum
 
 
 class Client(QObject):
@@ -645,14 +663,19 @@ class Client(QObject):
     def send_card_move(self, card_id):
         if self.finished:
             return
-        self._send_game_action(RequestType.MAKE_ACTION, GameAction.CARD, card_id, 0)
+        self._send_game_action(
+            RequestType.MAKE_ACTION, 
+            GameAction.CARD, 
+            card_id, 
+            self.game.calculate_checksum()
+        )
 
     def send_swap(self, target_player_id):
         self._send_game_action(
             RequestType.MAKE_ACTION,
             GameAction.SWAP,
             target_player_id,
-            0 
+            self.game.calculate_checksum()
         )
         
     def send_freeze(self, target_player_id):
@@ -660,7 +683,7 @@ class Client(QObject):
             RequestType.MAKE_ACTION,
             GameAction.FREEZE,
             target_player_id,
-            0
+            self.game.calculate_checksum()
         )
         
     def send_reroll(self):
@@ -668,7 +691,7 @@ class Client(QObject):
             RequestType.MAKE_ACTION,
             GameAction.REROLL,
             0,
-            0
+            self.game.calculate_checksum()
         )
 
 def main():

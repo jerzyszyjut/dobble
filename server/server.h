@@ -5,7 +5,7 @@
 #include "game.h"
 
 #define MAX_PLAYER_NAME_LENGTH 32
-#define MAX_PLAYERS 2
+#define MAX_PLAYERS 3
 #define PORT 8080
 #define START_GAME_PIPE 0
 #define PLAYER_PIPES_START 1
