@@ -349,7 +349,7 @@ class DobbleMainWindow(QWidget):
         self.player_scores_table = QGridLayout()
         self.layout.addLayout(self.player_scores_table, 1, 0)
         for i, player in enumerate(self.game_client.game.player_states):
-            player_label = QLabel(f"Player {player.player_id}: { player.cards_in_hand_count}")
+            player_label = QLabel(f"Remaining cards for player {player.name}: { player.cards_in_hand_count}")
             self.player_scores_table.addWidget(player_label, i, 0)
         self.close_button = QPushButton("Close")
         self.close_button.clicked.connect(self.close)

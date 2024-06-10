@@ -67,6 +67,10 @@ void *player_thread(void *arg)
     if (request_type == MAKE_ACTION)
     {
       receive_game_action(args->server, args->game, player->player_id);
+      if (args->game->has_finished)
+      {
+        break;
+      }
     }
     else if (request_type == SEND_GAME_STATE)
     {
@@ -166,7 +170,7 @@ void run_server(server_t *server)
 void wait_for_players(server_t *server)
 {
   game_t game;
-
+  printf("Server is listening for players on port %d\n", PORT);
   while (server->num_players < MAX_PLAYERS)
   {
     int new_socket;
